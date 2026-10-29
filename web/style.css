@@ -144,7 +144,8 @@ main {
   border-radius: 50%;
 }
 #folder-help,
-#play-status {
+#play-status,
+#update-status {
   text-align: center;
   font-size: 14px;
   line-height: 1.5;
@@ -299,6 +300,19 @@ dialog form {
   padding: 8px;
   background: #000e;
   z-index: 2;
+}
+#update-status {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+  padding: 8px;
+  background: #000e;
+  z-index: 3;
+}
+.game-panel:not([hidden]) ~ #update-status {
+  display: none;
 }
 .menu-item:disabled {
   opacity: 0.45;

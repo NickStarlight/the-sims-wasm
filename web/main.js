@@ -2,6 +2,7 @@ import { savedFolder, folderFiles } from './folder.js'
 import { createDisplay } from './presentation.js'
 import { BrowserAudio } from './audio-output.js'
 import { loadRegistry, storeRegistry, resetProgress } from './storage.js'
+import { checkForAppUpdate } from './pwa.js'
 
 let audio
 
@@ -168,6 +169,16 @@ gameForm.addEventListener('submit', async (event) => {
   let files = selectedFiles
 
   try {
+    // Resume during the Play gesture, before waiting for update or folder I/O.
+    audio ??= new BrowserAudio()
+    audio.resume()
+
+    if (!(await checkForAppUpdate())) {
+      playButton.disabled = false
+
+      return
+    }
+
     if (directory) {
       const permission = await directory.requestPermission({ mode: 'read' })
 
@@ -181,7 +192,7 @@ gameForm.addEventListener('submit', async (event) => {
     if (!files.length)
       throw new Error('The selected folder is empty. Choose your installed game folder.')
   } catch (error) {
-    folderHelp.textContent = `Could not read game folder. ${error.message}`
+    folderHelp.textContent = `Could not start game. ${error.message}`
     playButton.disabled = false
 
     return
@@ -192,8 +203,6 @@ gameForm.addEventListener('submit', async (event) => {
   launcher.hidden = true
   folderHelp.hidden = true
   gamePanel.hidden = false
-  audio ??= new BrowserAudio()
-  audio.resume()
   audio.stop()
   executing = false
   display.reset()

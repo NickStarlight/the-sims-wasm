@@ -262,3 +262,6 @@ await import('./guest-memory.mjs');
 
 const { cleanupSmoke } = await import('./cleanup.mjs');
 await cleanupSmoke(moduleUrl);
+
+const { pwaSmoke } = await import('./pwa.mjs');
+await pwaSmoke(moduleUrl);
