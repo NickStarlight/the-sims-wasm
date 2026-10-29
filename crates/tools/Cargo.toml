@@ -1,0 +1,18 @@
+[package]
+name = "sims-tools"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+anyhow = "1"
+serde_json = "1"
+sha2 = "0.10"
+tiny_http = "0.12"
+clap = { version = "4", features = ["derive"] }
+sims-compiler = { path = "../compiler" }
+tempfile = "3.27.0"
+
+[lints]
+workspace = true

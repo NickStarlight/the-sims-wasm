@@ -1,0 +1,12 @@
+/target/
+/dist/
+/.tools/
+/crates/*/target/
+/crates/*/Cargo.lock
+/.debug-tmp/
+/.client/
+*.[mM][dD]
+!/README.md
+/docs
+/research
+/scripts

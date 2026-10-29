@@ -1,0 +1,166 @@
+use super::*;
+pub(super) const PARENT1: [u32; 4] = [0x3bba0080, 0x11cf2421, 0xaa001aa3, 0x5633b900];
+pub(super) const PARENT3: [u32; 4] = [0xbb223240, 0x11d0e72b, 0xaa00b4a9, 0x3e99c000];
+pub(super) const RGB: [u32; 4] = [0xa4665c60, 0x11cf2673, 0xaa001aa3, 0x5633b900];
+pub(in crate::graphics) fn vtable(kind: Interface) -> (String, usize, Vec<(usize, &'static str)>) {
+    let names: &[&str] = match kind {
+        Interface::Parent1 => &[
+            "D3D_QueryInterface",
+            "D3D_AddRef",
+            "D3D_Release",
+            "D3D_Initialize",
+            "D3D_EnumDevices",
+            "D3D_CreateLight",
+            "D3D_CreateMaterial",
+            "D3D_CreateViewport",
+            "D3D_FindDevice",
+        ],
+        Interface::Parent3 => &[
+            "D3D_QueryInterface",
+            "D3D_AddRef",
+            "D3D_Release",
+            "D3D_EnumDevices",
+            "D3D_CreateLight",
+            "D3D_CreateMaterial",
+            "D3D_CreateViewport",
+            "D3D_FindDevice",
+            "D3D_CreateDevice",
+            "D3D_CreateVertexBuffer",
+            "D3D_EnumZBufferFormats",
+            "D3D_EvictManagedTextures",
+        ],
+        Interface::Viewport => &[
+            "D3D_QueryInterface",
+            "D3D_AddRef",
+            "D3D_Release",
+            "D3D_Initialize",
+            "D3DViewport_GetViewport",
+            "D3DViewport_SetViewport",
+            "D3DViewport_TransformVertices",
+            "D3DViewport_LightElements",
+            "D3DViewport_SetBackground",
+            "D3DViewport_GetBackground",
+            "D3DViewport_SetBackgroundDepth",
+            "D3DViewport_GetBackgroundDepth",
+            "D3DViewport_Clear",
+            "D3DViewport_AddLight",
+            "D3DViewport_DeleteLight",
+            "D3DViewport_NextLight",
+            "D3DViewport_GetViewport2",
+            "D3DViewport_SetViewport2",
+            "D3DViewport_SetBackgroundDepth",
+            "D3DViewport_GetBackgroundDepth",
+            "D3DViewport_Clear2",
+        ],
+        Interface::Material1 => &[
+            "D3D_QueryInterface",
+            "D3D_AddRef",
+            "D3D_Release",
+            "D3D_Initialize",
+            "D3DMaterial_SetMaterial",
+            "D3DMaterial_GetMaterial",
+            "D3DMaterial_GetHandle",
+            "D3DMaterial_Reserve",
+            "D3DMaterial_Unreserve",
+        ],
+        Interface::Material3 => &[
+            "D3D_QueryInterface",
+            "D3D_AddRef",
+            "D3D_Release",
+            "D3DMaterial_SetMaterial",
+            "D3DMaterial_GetMaterial",
+            "D3DMaterial_GetHandle",
+        ],
+        Interface::Light => &[
+            "D3D_QueryInterface",
+            "D3D_AddRef",
+            "D3D_Release",
+            "D3D_Initialize",
+            "D3DLight_SetLight",
+            "D3DLight_GetLight",
+        ],
+        Interface::Texture1 => &[
+            "D3D_QueryInterface",
+            "D3D_AddRef",
+            "D3D_Release",
+            "D3DTexture_Initialize",
+            "D3DTexture_GetHandle",
+            "D3DTexture_PaletteChanged",
+            "D3DTexture_Load",
+            "D3DTexture_Unload",
+        ],
+        Interface::Texture2 => &[
+            "D3D_QueryInterface",
+            "D3D_AddRef",
+            "D3D_Release",
+            "D3DTexture_GetHandle",
+            "D3DTexture_PaletteChanged",
+            "D3DTexture_Load",
+        ],
+        Interface::Device2 | Interface::Device3 => return device_table(kind),
+    };
+    (
+        format!("{kind:?}"),
+        names.len(),
+        names.iter().copied().enumerate().collect(),
+    )
+}
+fn device_table(kind: Interface) -> (String, usize, Vec<(usize, &'static str)>) {
+    let mut names = vec![
+        "D3D_QueryInterface",
+        "D3D_AddRef",
+        "D3D_Release",
+        "D3DDevice_GetCaps",
+        "D3DDevice_GetStats",
+        "D3DDevice_AddViewport",
+        "D3DDevice_DeleteViewport",
+        "D3DDevice_NextViewport",
+        "D3DDevice_EnumTextureFormats",
+        "D3DDevice_BeginScene",
+        "D3DDevice_EndScene",
+        "D3DDevice_GetDirect3D",
+        "D3DDevice_SetCurrentViewport",
+        "D3DDevice_GetCurrentViewport",
+        "D3DDevice_SetRenderTarget",
+        "D3DDevice_GetRenderTarget",
+        "D3DDevice_Begin",
+        "D3DDevice_BeginIndexed",
+        "D3DDevice_Vertex",
+        "D3DDevice_Index",
+        "D3DDevice_End",
+        "D3DDevice_GetRenderState",
+        "D3DDevice_SetRenderState",
+        "D3DDevice_GetLightState",
+        "D3DDevice_SetLightState",
+        "D3DDevice_SetTransform",
+        "D3DDevice_GetTransform",
+        "D3DDevice_MultiplyTransform",
+        "D3DDevice_DrawPrimitive",
+        "D3DDevice_DrawIndexedPrimitive",
+        "D3DDevice_SetClipStatus",
+        "D3DDevice_GetClipStatus",
+        "D3DDevice_DrawPrimitiveStrided",
+        "D3DDevice_DrawIndexedPrimitiveStrided",
+        "D3DDevice_DrawPrimitiveVB",
+        "D3DDevice_DrawIndexedPrimitiveVB",
+        "D3DDevice_ComputeSphereVisibility",
+        "D3DDevice_GetTexture",
+        "D3DDevice_SetTexture",
+        "D3DDevice_GetTextureStageState",
+        "D3DDevice_SetTextureStageState",
+        "D3DDevice_ValidateDevice",
+    ];
+    if kind == Interface::Device2 {
+        names.truncate(32);
+        names[8] = "D3DDevice2_EnumTextureFormats";
+        names[11] = "D3DDevice2_GetDirect3D";
+        names[28] = "D3DDevice2_DrawPrimitive";
+        names[29] = "D3DDevice2_DrawIndexedPrimitive";
+        names.insert(4, "D3DDevice2_SwapTextureHandles");
+    }
+    (
+        format!("{kind:?}"),
+        names.len(),
+        names.into_iter().enumerate().collect(),
+    )
+}
