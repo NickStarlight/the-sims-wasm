@@ -45,6 +45,29 @@ export async function threadSmoke(Process, directory) {
   quiet.waits.set(1, { deadline: null, reject() {} });
   quiet.notify('LeaveCriticalSection'); quiet.notify('SetEvent');
   await quiet.close();
+  const primary = new Error('original guest failure');
+  const cleanupError = new Error('poisoned Rust binding');
+  const cancellations = [];
+  const broken = new ThreadHost({
+    finishThread() { throw cleanupError; },
+    cancelWait(token) { cancellations.push(token); throw new Error('wait cancellation failed'); },
+  }, new WebAssembly.Memory({initial: 1}), undefined, {
+    get trampBase() { throw primary; },
+  });
+  const rejected = [];
+  for (const token of [1, 2]) {
+    broken.waits.set(token, { reject: reason => rejected.push(reason) });
+  }
+  broken.start({id: 2, stackBase: 0x10000});
+  await Promise.all([...broken.tasks]);
+  assert.equal(broken.signal.reason, primary, 'a failed finishThread must not replace the thread failure or prevent abort');
+  assert.deepEqual(cancellations, [1, 2], 'all native wait cancellations are attempted even if the process is poisoned');
+  assert.deepEqual(rejected, [primary, primary], 'all suspended waits reject with the original reason');
+  assert.equal(broken.waits.size, 0);
+  await assert.rejects(broken.close(), error => error === primary, 'a prior abort reason outranks poisoned cleanup even when the main thread returned before observing cancellation');
+  const cleanupOnly = new ThreadHost({cancelWait() { throw cleanupError; }});
+  cleanupOnly.waits.set(1, {reject() {}});
+  await assert.rejects(cleanupOnly.close(), error => error === cleanupError, 'cleanup failures still surface when shutdown started without a prior abort');
   const originalTimeout = globalThis.setTimeout, originalClear = globalThis.clearTimeout;
   let armed = 0, cleared = 0;
   const timed = new ThreadHost({ advanceTime() {}, takeReadyWaits: () => '[]', takeRunnableThreads: () => '[]' });

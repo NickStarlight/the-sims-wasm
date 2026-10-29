@@ -231,7 +231,7 @@ function showResult({ data }) {
         frameAcknowledgements: true,
         packedFrames: display.packedFrames,
       },
-      [data.program.imageBytes.buffer],
+      [data.program.wasm.buffer, data.program.imageBytes.buffer],
     )
     const audioWorker = worker
     audio
@@ -255,7 +255,11 @@ function showResult({ data }) {
 
   if (data.finished) return finish()
 
-  if (data.error) return finish(data.error)
+  if (data.error) {
+    console.error(data.stack ?? data.error)
+
+    return finish(data.error)
+  }
 }
 
 function startWorker(source = './worker.js') {

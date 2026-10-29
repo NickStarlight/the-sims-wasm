@@ -32,6 +32,20 @@ export async function frameOutputSmoke(directory) {
   }) }, () => { throw new Error('transport failed'); }), /transport failed/);
   assert.ok(released, 'transport errors must release owned Wasm frames');
 
+  const trap = new WebAssembly.RuntimeError('frame pixel conversion trapped');
+  const borrowed = new Error('attempted to take ownership of Rust value while it was borrowed');
+  let trappedFrameFreed = false;
+  assert.throws(() => consumeFrame({ takeFrame: () => ({
+    width: 1, height: 1,
+    pixels() { throw trap; },
+    free() { trappedFrameFreed = true; throw borrowed; },
+  }) }, () => assert.fail('trapped frame must not be delivered')), error => error === trap);
+  assert.ok(trappedFrameFreed, 'attempt cleanup without replacing the original Wasm trap');
+  assert.throws(() => consumeFrame({ takeFrame: () => ({
+    width: 1, height: 1, pixels: () => new Uint8Array(4),
+    free() { throw borrowed; },
+  }) }, () => {}), error => error === borrowed, 'cleanup errors surface when no earlier error exists');
+
   let packedFreed = false, packedTakes = 0;
   const packets = [];
   const packedPresenter = createFramePresenter(frame => packets.push(frame));

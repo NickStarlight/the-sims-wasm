@@ -3,18 +3,59 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use wasm_encoder::{
-    CodeSection, ConstExpr, ElementSection, Elements, EntityType, ExportKind, ExportSection,
-    Function, FunctionSection, GlobalSection, GlobalType, ImportSection, Instruction,
-    MemorySection, MemoryType, Module, NameMap, NameSection, RefType, TableType, TypeSection,
+    ConstExpr, ElementSection, Elements, Encode, EntityType, ExportKind, ExportSection, Function,
+    FunctionSection, GlobalSection, GlobalType, ImportSection, MemorySection, MemoryType, Module,
+    NameMap, NameSection, RefType, Section, TableType, TypeSection,
 };
 use wasmparser::{Parser, Payload};
 
-use super::opcodes::ValType;
+use super::{leb::uleb, opcodes::ValType};
 
 pub struct FuncDef {
     pub type_idx: u32,
     pub locals: Vec<ValType>,
     pub body: Vec<u8>,
+}
+
+/// Encode directly into the module, avoiding a second complete code buffer.
+struct StreamingCode<'a>(&'a [FuncDef], usize);
+
+impl Encode for StreamingCode<'_> {
+    fn encode(&self, sink: &mut Vec<u8>) {
+        let headers: Vec<_> = self
+            .0
+            .iter()
+            .map(|definition| {
+                Function::new_with_locals_types(definition.locals.iter().copied().map(value_type))
+                    .into_raw_body()
+            })
+            .collect();
+        let length = uleb(self.0.len() as u32).len()
+            + self
+                .0
+                .iter()
+                .zip(&headers)
+                .map(|(definition, header)| {
+                    let body = header.len() + definition.body.len() + 1;
+                    uleb(body as u32).len() + body
+                })
+                .sum::<usize>();
+        sink.reserve_exact(uleb(length as u32).len() + length + self.1);
+        length.encode(sink);
+        self.0.len().encode(sink);
+        for (definition, header) in self.0.iter().zip(headers) {
+            (header.len() + definition.body.len() + 1).encode(sink);
+            sink.extend_from_slice(&header);
+            sink.extend_from_slice(&definition.body);
+            sink.push(0x0b);
+        }
+    }
+}
+
+impl Section for StreamingCode<'_> {
+    fn id(&self) -> u8 {
+        10
+    }
 }
 
 struct ImportedFn {
@@ -162,7 +203,7 @@ impl WasmBuilder {
         }
         self.encode_exports(&mut module);
         self.encode_elements(&mut module);
-        self.encode_code(&mut module);
+        let mut suffix = Vec::new();
         if !self.names.is_empty() {
             let mut names = NameMap::new();
             for (&index, name) in &self.names {
@@ -170,9 +211,12 @@ impl WasmBuilder {
             }
             let mut section = NameSection::new();
             section.functions(&names);
-            module.section(&section);
+            suffix.push(section.id());
+            section.encode(&mut suffix);
         }
-        let bytes = module.finish();
+        self.encode_code(&mut module, suffix.len());
+        let mut bytes = module.finish();
+        bytes.extend_from_slice(&suffix);
         // V8 reports module-absolute offsets, beginning after each body's size prefix.
         self.func_body_starts = Parser::new(0)
             .parse_all(&bytes)
@@ -288,19 +332,11 @@ impl WasmBuilder {
         module.section(&section);
     }
 
-    fn encode_code(&self, module: &mut Module) {
+    fn encode_code(&self, module: &mut Module, suffix_length: usize) {
         if self.funcs.is_empty() {
             return;
         }
-        let mut section = CodeSection::new();
-        for definition in &self.funcs {
-            let mut function =
-                Function::new_with_locals_types(definition.locals.iter().copied().map(value_type));
-            function.raw(definition.body.iter().copied());
-            function.instruction(&Instruction::End);
-            section.function(&function);
-        }
-        module.section(&section);
+        module.section(&StreamingCode(&self.funcs, suffix_length));
     }
 }
 

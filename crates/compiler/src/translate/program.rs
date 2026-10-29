@@ -140,6 +140,9 @@ pub fn translate_program(
         });
         b.name_func(index, format!("guest_{addr:08x}"));
     }
+    // The encoder needs only emitted functions. Release discovery buffers
+    // before allocating the final code section and module byte buffer.
+    drop(funcs);
 
     emit_idx_of(&mut b, idx_of, n, abi::TAB_ADDR);
 

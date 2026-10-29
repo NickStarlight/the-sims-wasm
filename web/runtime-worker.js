@@ -30,12 +30,18 @@ self.onmessage = async ({ data }) => {
       owner
         ? (left, right, rate) => {
             const block = owner.mixAudio(left.length, rate, performance.now())
+            let failed = true
 
             try {
               left.set(block.left())
               right.set(block.right())
+              failed = false
             } finally {
-              block.free()
+              try {
+                block.free()
+              } catch (error) {
+                if (!failed) throw error
+              }
             }
           }
         : undefined,
@@ -79,6 +85,6 @@ self.onmessage = async ({ data }) => {
     })
     self.postMessage({ finished: 'Guest stopped.' })
   } catch (error) {
-    self.postMessage({ error: error.message })
+    self.postMessage({ error: error.message, stack: error.stack })
   }
 }

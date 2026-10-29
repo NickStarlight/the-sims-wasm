@@ -58,6 +58,13 @@ impl BrowserArtifact {
         self.0.wasm.clone()
     }
 
+    /// Transfers the emitted module without cloning its buffer inside Rust.
+    /// Linking metadata remains available; subsequent byte reads are empty.
+    #[wasm_bindgen(js_name = takeWasm)]
+    pub fn take_wasm(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.0.wasm)
+    }
+
     #[wasm_bindgen(js_name = metadataJson)]
     pub fn metadata_json(&self) -> Result<String, JsError> {
         self.0

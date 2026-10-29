@@ -49,6 +49,7 @@ export class ThreadHost {
     this.timer = null
     this.timerDeadline = null
     this.launchScheduled = false
+    this.cleanupFailure = null
   }
 
   checkAbort() {
@@ -184,7 +185,12 @@ export class ThreadHost {
         this.drain()
       })
       .catch((error) => {
-        this.process.finishThread(descriptor.id, 0xc0000005)
+        try {
+          this.process.finishThread(descriptor.id, 0xc0000005)
+        } catch (cleanupError) {
+          this.cleanupFailure ??= { error: cleanupError }
+        }
+
         this.abort(error)
       })
     this.tasks.add(task)
@@ -198,15 +204,27 @@ export class ThreadHost {
     clearTimeout(this.timer)
 
     for (const [token, wait] of this.waits) {
-      this.process.cancelWait(token)
-      wait.reject(reason)
+      for (const close of [() => this.process.cancelWait(token), () => wait.reject(reason)]) {
+        try {
+          close()
+        } catch (error) {
+          this.cleanupFailure ??= { error }
+        }
+      }
     }
 
     this.waits.clear()
   }
 
   async close() {
+    const abortedBeforeClose = this.signal.aborted
     this.abort(new Error('Guest process stopped.'))
     await Promise.allSettled([...this.tasks])
+
+    if (this.cleanupFailure) {
+      if (abortedBeforeClose) throw this.signal.reason
+
+      throw this.cleanupFailure.error
+    }
   }
 }

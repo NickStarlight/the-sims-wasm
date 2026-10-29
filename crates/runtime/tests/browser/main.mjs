@@ -259,3 +259,6 @@ const { conditionalSuspensionSmoke } = await import('./conditional-suspension.mj
 await conditionalSuspensionSmoke(moduleUrl);
 
 await import('./guest-memory.mjs');
+
+const { cleanupSmoke } = await import('./cleanup.mjs');
+await cleanupSmoke(moduleUrl);

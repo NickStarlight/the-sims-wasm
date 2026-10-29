@@ -70,14 +70,14 @@ export class Compiler {
     fixture.step('compile')
     fixture.artifacts++
     return {
-      wasm() { fixture.step('wasm'); return fixture.wasm.slice() },
+      takeWasm() { fixture.step('wasm'); return fixture.wasm.slice() },
       runtimeMetadataJson() { fixture.step('metadata'); return fixture.metadataText ?? JSON.stringify(fixture.metadata) },
-      free() { fixture.artifactFreed++; fixture.events.push('artifact.free') },
+      free() { fixture.artifactFreed++; fixture.step('artifact.free') },
     }
   }
   loadPlanJson() { fixture.step('plan'); return JSON.stringify(fixture.plan) }
   loadBytes() { fixture.step('loadBytes'); return fixture.packed.slice() }
-  free() { fixture.compilerFreed++; fixture.events.push('compiler.free') }
+  free() { fixture.compilerFreed++; fixture.step('compiler.free') }
 }
 `
 
@@ -165,6 +165,7 @@ function fixture() {
     plan: structuredClone(plan),
     step(name) {
       this.events.push(name)
+      if (this.failures?.has(name)) throw this.failures.get(name)
       if (this.failure === name) throw new Error(`fixture failure: ${name}`)
     },
     checkInit(options) {
@@ -249,8 +250,9 @@ function assertProgram(program, state, files = state.files) {
     'reattach the exact selected File handles without replacing or appending binaries',
   )
   assert.equal(program.files.length, files.length)
-  assert.ok(program.module instanceof WebAssembly.Module)
-  assert.ok(structuredClone(program.module) instanceof WebAssembly.Module)
+  assert.ok(!('module' in program), 'terminate the compiler worker before JIT compilation')
+  assert.deepEqual(program.wasm, state.wasm)
+  assert.ok(WebAssembly.validate(program.wasm))
   assert.equal(program.clientId, state.profile.sha256)
   assert.equal(program.commandLine, commandLine)
   assert.deepEqual(program.metadata, metadata)
@@ -287,8 +289,12 @@ async function check(name, body) {
     ]),
   )
   const NativeBlob = globalThis.Blob
+  const compile = WebAssembly.compile
   const state = fixture()
   try {
+    WebAssembly.compile = () => {
+      assert.fail('JIT the game only after terminating the compiler worker')
+    }
     Object.defineProperty(globalThis, 'Blob', {
       configurable: true,
       value: class FixtureBlob extends NativeBlob {
@@ -397,6 +403,7 @@ async function check(name, body) {
   } catch (error) {
     throw new Error(`${name}: ${error.message}`, { cause: error })
   } finally {
+    WebAssembly.compile = compile
     for (const [key, descriptor] of urlMethods) {
       if (descriptor) Object.defineProperty(URL, key, descriptor)
       else delete URL[key]
@@ -454,6 +461,25 @@ await check('warm hit never imports or initializes compiler', async (f) => {
   assert.equal(f.puts.length, 0)
   assert.equal(f.constructed.length, 0)
   assert.deepEqual(f.phases, ['local-files-check-start', 'local-compile-cache-hit', 'client-ready'])
+})
+
+await check('cold and cached game buffers survive both worker transfers', async (f) => {
+  for (const launch of ['cold', 'cached']) {
+    const prepared = await f.load()
+    const main = structuredClone(prepared, {
+      transfer: [prepared.wasm.buffer, prepared.imageBytes.buffer],
+    })
+    assert.equal(prepared.wasm.byteLength, 0, `${launch}: no retained compiler-worker copy`)
+    assert.equal(prepared.imageBytes.byteLength, 0)
+    const runtime = structuredClone(main, { transfer: [main.wasm.buffer, main.imageBytes.buffer] })
+    assert.equal(main.wasm.byteLength, 0, `${launch}: no retained main-thread copy`)
+    assert.equal(main.imageBytes.byteLength, 0)
+    assertProgram(runtime, f, runtime.files)
+    const saved = f.records.get(await keyFor(f))
+    assert.deepEqual(saved.wasm, wasm, 'persisted artifact remains usable after transfer')
+    assert.deepEqual(saved.imageBytes, packed)
+  }
+  assert.equal(f.init, 1, 'the second transfer comes from the compilation cache')
 })
 
 await check('DLL content and compiler identity invalidate cache', async (f) => {
@@ -625,6 +651,35 @@ await check('invalid newly compiled Wasm frees both owners', async (f) => {
   assert.equal(f.artifactFreed, 1)
   assert.equal(f.puts.length, 0)
 })
+
+for (const stage of ['compile', 'plan', 'wasm', 'metadata', 'loadBytes']) {
+  await check(`Wasm trap during ${stage} survives poisoned owner cleanup`, async (f) => {
+    const trap = new WebAssembly.RuntimeError('unreachable executed during compilation')
+    const borrowed = new Error('attempted to take ownership of Rust value while it was borrowed')
+    f.failures = new Map([
+      [stage, trap],
+      ['artifact.free', borrowed],
+      ['compiler.free', borrowed],
+    ])
+    await assert.rejects(f.load(), (error) => error === trap)
+    assert.equal(f.compilerFreed, 1)
+    assert.equal(f.artifactFreed, stage === 'compile' ? 0 : 1)
+    assert.equal(f.puts.length, 0)
+    assert.ok(!f.phases.includes('local-compile-done'))
+    assert.ok(!f.phases.includes('client-ready'))
+  })
+}
+
+for (const stage of ['artifact.free', 'compiler.free']) {
+  await check(`cleanup failure in ${stage} still releases both owners and rejects`, async (f) => {
+    f.failure = stage
+    await assert.rejects(f.load(), new RegExp(`fixture failure: ${stage}`))
+    assert.equal(f.compilerFreed, 1)
+    assert.equal(f.artifactFreed, 1)
+    assert.equal(f.puts.length, 0)
+    assert.ok(!f.phases.includes('client-ready'))
+  })
+}
 
 await check('invalid metadata frees both owners', async (f) => {
   f.metadataText = '{'

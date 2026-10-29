@@ -28,4 +28,39 @@ fn preserves_guest_imports_elements_and_debug_offsets() {
     assert_eq!(bytes, expected);
     assert_eq!(builder.func_body_starts, [94]);
     wasmparser::validate(&bytes).unwrap();
+    let repeated = builder.build();
+    assert_eq!(
+        repeated, expected,
+        "streaming build preserves reusable builder semantics"
+    );
+    assert_eq!(builder.func_body_starts, [94]);
+}
+
+#[test]
+fn streams_code_identically_to_reference_encoder_across_leb_boundaries() {
+    let lengths = [0, 1, 126, 127, 128, 16383, 16384];
+    let definitions: Vec<_> = (0..129)
+        .map(|index| FuncDef {
+            type_idx: 0,
+            locals: if index % 2 == 0 {
+                vec![0x7f; 129]
+            } else {
+                vec![0x7f, 0x7f, 0x7c]
+            },
+            body: vec![0x01; lengths[index % lengths.len()]],
+        })
+        .collect();
+    let mut reference = wasm_encoder::CodeSection::new();
+    for definition in &definitions {
+        let mut function =
+            Function::new_with_locals_types(definition.locals.iter().copied().map(value_type));
+        function.raw(definition.body.iter().copied());
+        function.instruction(&wasm_encoder::Instruction::End);
+        reference.function(&function);
+    }
+    let mut expected = Vec::new();
+    reference.encode(&mut expected);
+    let mut actual = Vec::new();
+    StreamingCode(&definitions, 0).encode(&mut actual);
+    assert_eq!(actual, expected);
 }

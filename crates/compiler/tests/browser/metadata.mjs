@@ -48,6 +48,18 @@ export async function compilerMetadataSmoke(directory) {
       bytes,
       'metadata export does not consume or alter module bytes',
     )
+    assert.deepEqual(
+      artifact.takeWasm(),
+      bytes,
+      'one-shot export moves the same module bytes out of Rust',
+    )
+    assert.equal(artifact.wasm().length, 0, 'one-shot export consumes the Rust module buffer')
+    assert.equal(artifact.takeWasm().length, 0, 'repeated one-shot export is empty')
+    assert.deepEqual(
+      JSON.parse(artifact.runtimeMetadataJson()),
+      metadata,
+      'moving module bytes preserves linking metadata',
+    )
     plan = JSON.parse(compiler.loadPlanJson())
     image = compiler.loadBytes()
     assert.equal(plan.images.length, 2)

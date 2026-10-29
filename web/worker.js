@@ -9,8 +9,8 @@ self.onmessage = async ({ data }) => {
       (phase) => self.postMessage({ phase }),
       (progress) => self.postMessage({ progress }),
     )
-    self.postMessage({ program }, [program.imageBytes.buffer])
+    self.postMessage({ program }, [program.wasm.buffer, program.imageBytes.buffer])
   } catch (error) {
-    self.postMessage({ error: error.message })
+    self.postMessage({ error: error.message, stack: error.stack })
   }
 }
