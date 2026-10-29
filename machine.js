@@ -69,8 +69,20 @@ export async function createMachine(program, report) {
       ...createThreadContext(program.metadata, { id: 1, teb: TEB, stackBase: 0xeff010 }),
     }
   } catch (error) {
-    await assetCache?.close()
-    process.free()
+    // A raw Wasm trap can leave a binding borrowed. Cleanup must still release
+    // independent resources without replacing the error which caused shutdown.
+    try {
+      await assetCache?.close()
+    } catch {
+      /* Preserve the setup failure. */
+    }
+
+    try {
+      process.free()
+    } catch {
+      /* Preserve the setup failure, including a poisoned Wasm binding. */
+    }
+
     throw error
   }
 }

@@ -5,6 +5,7 @@ export const __wbg_artifact_free: (a: number, b: number) => void;
 export const __wbg_compiler_free: (a: number, b: number) => void;
 export const artifact_metadataJson: (a: number) => [number, number, number, number];
 export const artifact_runtimeMetadataJson: (a: number) => [number, number, number, number];
+export const artifact_takeWasm: (a: number) => [number, number];
 export const artifact_wasm: (a: number) => [number, number];
 export const compiler_addModule: (a: number, b: number, c: number, d: number) => [number, number];
 export const compiler_compile: (a: number, b: number, c: number) => [number, number, number];

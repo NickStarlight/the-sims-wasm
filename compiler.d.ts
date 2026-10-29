@@ -11,6 +11,11 @@ export class Artifact {
      */
     runtimeMetadataJson(): string;
     /**
+     * Transfers the emitted module without cloning its buffer inside Rust.
+     * Linking metadata remains available; subsequent byte reads are empty.
+     */
+    takeWasm(): Uint8Array;
+    /**
      * Copies the emitted module bytes to the host for WebAssembly.compile.
      */
     wasm(): Uint8Array;
@@ -39,6 +44,7 @@ export interface InitOutput {
     readonly __wbg_compiler_free: (a: number, b: number) => void;
     readonly artifact_metadataJson: (a: number) => [number, number, number, number];
     readonly artifact_runtimeMetadataJson: (a: number) => [number, number, number, number];
+    readonly artifact_takeWasm: (a: number) => [number, number];
     readonly artifact_wasm: (a: number) => [number, number];
     readonly compiler_addModule: (a: number, b: number, c: number, d: number) => [number, number];
     readonly compiler_compile: (a: number, b: number, c: number) => [number, number, number];

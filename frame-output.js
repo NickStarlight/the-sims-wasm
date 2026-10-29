@@ -4,6 +4,8 @@ export function consumeFrame(process, onFrame, packed = false) {
 
   if (!frame) return false
 
+  let failed = true
+
   try {
     onFrame({
       width: frame.width,
@@ -12,8 +14,13 @@ export function consumeFrame(process, onFrame, packed = false) {
       pitch: frame.pitch ?? frame.width * 4,
       pixels: frame.pixels(),
     })
+    failed = false
   } finally {
-    frame.free()
+    try {
+      frame.free()
+    } catch (error) {
+      if (!failed) throw error
+    }
   }
 
   return true

@@ -61,6 +61,17 @@ export class Artifact {
         }
     }
     /**
+     * Transfers the emitted module without cloning its buffer inside Rust.
+     * Linking metadata remains available; subsequent byte reads are empty.
+     * @returns {Uint8Array}
+     */
+    takeWasm() {
+        const ret = wasm.artifact_takeWasm(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
      * Copies the emitted module bytes to the host for WebAssembly.compile.
      * @returns {Uint8Array}
      */

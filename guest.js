@@ -23,6 +23,10 @@ export async function runGuest(
   const compiling = (
     program.module ? Promise.resolve(program.module) : WebAssembly.compile(program.wasm)
   ).then((module) => {
+    // Execution needs only the compiled module. Drop the transferred source
+    // buffer instead of retaining another complete copy for the whole game.
+    if (!program.module) program.wasm = undefined
+
     mark('execution-module-ready')
 
     return module
@@ -30,15 +34,17 @@ export async function runGuest(
   // Setup may fail before awaiting compilation; avoid an unhandled rejection.
   compiling.catch(() => {})
   const machine = await createMachine(program, report)
-  mark('assets-registered')
   const { process, memory, registers, assetCache, assetStats } = machine
-  const presentFrame = presenter?.present ?? onPresent ?? ((owner) => consumeFrame(owner, onFrame))
-  onReady(process)
   let storage
   let threads
   let progressTimer
+  let failed = false
 
   try {
+    mark('assets-registered')
+    const presentFrame =
+      presenter?.present ?? onPresent ?? ((owner) => consumeFrame(owner, onFrame))
+    onReady(process)
     storage = await openSaveStorage(program.files ?? [], process, program.clientId)
     mark('saves-restored')
     const module = await compiling
@@ -87,8 +93,11 @@ export async function runGuest(
     await scheduler.run(instance.exports.run, program.metadata.entry)
     report('Guest entry returned.')
   } catch (error) {
+    failed = true
+
     if (error instanceof GuestThreadExit) {
       report(error.message)
+      failed = false
 
       return
     }
@@ -99,19 +108,32 @@ export async function runGuest(
       { cause: error },
     )
   } finally {
-    clearInterval(progressTimer)
-    presenter?.onTransfer?.(null)
-    onReady(null)
+    let cleanupFailed = false
+    let cleanupError
 
-    try {
-      await threads?.close()
-      await storage?.close()
-    } finally {
+    // Keep the first failure and attempt every release. In particular, freeing
+    // a binding poisoned by a raw trap must not hide the original exception.
+    for (const close of [
+      () => clearInterval(progressTimer),
+      () => presenter?.onTransfer?.(null),
+      () => onReady(null),
+      () => threads?.close(),
+      () => storage?.close(),
+      () => assetCache?.close(),
+      () => process.free(),
+    ]) {
       try {
-        await assetCache?.close()
-      } finally {
-        process.free()
+        const pending = close()
+
+        if (pending && typeof pending.then === 'function') await pending
+      } catch (error) {
+        if (!cleanupFailed) {
+          cleanupFailed = true
+          cleanupError = error
+        }
       }
     }
+
+    if (!failed && cleanupFailed) throw cleanupError
   }
 }

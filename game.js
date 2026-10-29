@@ -40,10 +40,10 @@ async function compilerBuild() {
   return build
 }
 
-function programFrom(compiled, module, files) {
+function programFrom(compiled, files) {
   return {
     files,
-    module,
+    wasm: compiled.wasm,
     metadata: compiled.metadata,
     plan: compiled.plan,
     imageBytes: compiled.imageBytes,
@@ -100,6 +100,8 @@ async function compileGame(build, binaries) {
 
   let compiler
   let artifact
+  let failed = false
+  let failure
 
   try {
     compiler = new bindings.Compiler(binaries[0].bytes)
@@ -116,7 +118,7 @@ async function compileGame(build, binaries) {
 
     return {
       version: 1,
-      wasm: artifact.wasm(),
+      wasm: artifact.takeWasm(),
       metadata: JSON.parse(artifact.runtimeMetadataJson()),
       plan,
       imageBytes: compiler.loadBytes(),
@@ -124,9 +126,23 @@ async function compileGame(build, binaries) {
       commandLine,
       initialRegistry: profile.initialRegistry,
     }
+  } catch (error) {
+    failed = true
+    failure = error
   } finally {
-    artifact?.free()
-    compiler?.free()
+    // A Wasm trap can strand a Rust borrow. Preserve that first error if
+    // freeing its owner fails, and still release the other owner.
+    for (const owner of [artifact, compiler]) {
+      try {
+        owner?.free()
+      } catch (error) {
+        if (!failed) failure = error
+
+        failed = true
+      }
+    }
+
+    if (failed) throw failure
   }
 }
 
@@ -184,11 +200,14 @@ export async function loadGame(files, onPhase = () => {}, onProgress = () => {})
       if (cached && cached.clientId === binaries[0].sha256 && cached.commandLine === commandLine) {
         try {
           onProgress('Loading your cached game…')
-          const module = await WebAssembly.compile(cached.wasm)
+
+          if (!WebAssembly.validate(cached.wasm))
+            throw new WebAssembly.CompileError('The cached game module is invalid.')
+
           mark('local-compile-cache-hit')
           mark('client-ready')
 
-          return programFrom(cached, module, files)
+          return programFrom(cached, files)
         } catch {
           await cache.delete(key)
         }
@@ -200,11 +219,16 @@ export async function loadGame(files, onPhase = () => {}, onProgress = () => {})
       const compiled = await compileGame(build, binaries)
       mark('local-compile-done')
       onProgress('Starting your game…')
-      const module = await WebAssembly.compile(compiled.wasm)
+
+      if (!WebAssembly.validate(compiled.wasm))
+        throw new WebAssembly.CompileError('The prepared game module is invalid.')
+
       await cache.put(key, compiled)
       mark('client-ready')
 
-      return programFrom(compiled, module, files)
+      // The compiler's Wasm heap stays allocated until this worker terminates.
+      // Transfer the bytes first; only the runtime worker should JIT the game.
+      return programFrom(compiled, files)
     }
 
     return typeof navigator !== 'undefined' && navigator.locks?.request
