@@ -2,6 +2,9 @@ use super::*;
 use crate::translate::{emit_helpers::i32c, test_support::execute_sequences_v8};
 use crate::wasm::opcodes::Op;
 
+#[path = "optimize/flags.rs"]
+mod flags;
+
 #[test]
 fn promotion_publishes_state_at_calls_control_edges_memory_and_arithmetic_faults() {
     let mut code = Vec::new();

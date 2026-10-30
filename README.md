@@ -88,6 +88,8 @@ No! It translates the original game binary directly into WebAssembly. It's simil
 
 Wine was used as a reference for implementing several of the Windows API calls.
 
+The native CPU validation suite was inspired by [v86](https://github.com/copy/v86).
+
 ### 4. Code could be better/performance could be better
 Yeah... I tried my best but I did use a [clanker](https://en.wikipedia.org/wiki/Large_language_model) at the end of the day. Read the manifesto for a rant.
 
