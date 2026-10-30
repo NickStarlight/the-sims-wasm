@@ -10,6 +10,7 @@ fn repeated_store_matches_directions_widths_boundaries_and_partial_faults() {
     let functions = HashMap::new();
     let imports = HashMap::new();
     let context = EmitCtx {
+        memory_minimum_pages: 1,
         id: BTreeMap::new(),
         func_idx_of: &functions,
         idx_of: 0,

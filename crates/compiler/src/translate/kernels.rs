@@ -11,15 +11,18 @@ use crate::{guestmem::GuestMem, wasm::opcodes::Op};
 pub(super) enum Kernel {
     Compositor565,
     StringHash,
+    Geometry,
 }
 
 mod compositor;
+mod geometry;
 mod hash;
 
 impl Kernel {
     pub(super) fn sequence_end(&self, address: u32) -> Option<u32> {
         match self {
             Self::Compositor565 => compositor::sequence_end(address),
+            Self::Geometry => geometry::sequence_end(address),
             _ => None,
         }
     }
@@ -31,6 +34,7 @@ impl Kernel {
     ) -> Option<super::emit_fpu::runs::Run> {
         match self {
             Self::Compositor565 => compositor::emit(instructions, context),
+            Self::Geometry => geometry::emit(instructions, context),
             _ => None,
         }
     }
@@ -44,6 +48,7 @@ impl Kernel {
         match self {
             Self::Compositor565 => compositor::loop_kernel(address, context, depth),
             Self::StringHash => hash::emit(address, context, depth),
+            Self::Geometry => None,
         }
     }
 }
@@ -53,6 +58,7 @@ pub(super) fn recognize(image: &GuestMem, base: u32, address: u32) -> Option<Ker
         0x499b54 => (1137, 0x5f0a95f0fb3cf705u64, Kernel::Compositor565),
         0x498830 => (1147, 0xe5767f4600a52773u64, Kernel::Compositor565),
         0x5b8dba => (57, 0x4a457b254a26e704u64, Kernel::StringHash),
+        0x434ffd => (53, 0x0c9e770f3074dc7bu64, Kernel::Geometry),
         _ => return None,
     };
     let offset = address.checked_sub(base)? as usize;
@@ -84,9 +90,6 @@ fn memory_bytes() -> Seq {
     code.extend(i64c(16));
     code.push(Op::I64_SHL);
     code
-}
-fn within(address: Seq, length: i64) -> Seq {
-    within_length(address, i64c(length))
 }
 fn within_length(address: Seq, length: Seq) -> Seq {
     let mut code = address;

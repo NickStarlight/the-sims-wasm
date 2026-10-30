@@ -15,6 +15,7 @@ fn alpha_spans_preserve_checkpoint_register_memory_and_fault_semantics() {
     let functions = HashMap::new();
     let imports = HashMap::new();
     let context = crate::translate::emit::EmitCtx {
+        memory_minimum_pages: 1,
         id: BTreeMap::new(),
         func_idx_of: &functions,
         idx_of: 0,
@@ -85,6 +86,7 @@ fn masked_alpha_spans_preserve_every_native_checkpoint_path() {
     let functions = HashMap::new();
     let imports = HashMap::new();
     let context = crate::translate::emit::EmitCtx {
+        memory_minimum_pages: 1,
         id: BTreeMap::new(),
         func_idx_of: &functions,
         idx_of: 0,

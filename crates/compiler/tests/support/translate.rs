@@ -36,6 +36,7 @@ fn execute_v8_mode(routines: &[(&'static str, Vec<u8>)], assertions: &str, optim
     let functions = HashMap::new();
     let imports = HashMap::new();
     let context = EmitCtx {
+        memory_minimum_pages: 1,
         id: BTreeMap::new(),
         func_idx_of: &functions,
         idx_of: 0,
@@ -81,9 +82,18 @@ pub(super) fn execute_observed_sequences_v8(
     parameters: &[u8],
     assertions: &str,
 ) {
+    execute_observed_sequences_v8_with_memory(routines, parameters, 1, assertions);
+}
+
+pub(super) fn execute_observed_sequences_v8_with_memory(
+    routines: &[(&'static str, Vec<u8>)],
+    parameters: &[u8],
+    minimum_pages: u32,
+    assertions: &str,
+) {
     let mut builder = WasmBuilder::new();
     let signature = builder.add_type(&[], &[]);
-    builder.import_memory(1, None);
+    builder.import_memory(minimum_pages, None);
     for name in abi::REG_GLOBALS {
         builder.add_imported_global(name);
     }

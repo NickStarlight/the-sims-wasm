@@ -8,6 +8,9 @@ mod dispatch_tests;
 mod flow;
 mod function;
 #[cfg(test)]
+#[path = "../../tests/unit/translate/program/geometry.rs"]
+mod geometry_tests;
+#[cfg(test)]
 #[path = "../../tests/unit/translate/program/hash.rs"]
 mod hash_tests;
 mod images;
@@ -34,6 +37,7 @@ use segments::seg_ids;
 use std::collections::HashMap;
 
 const TRAMPOLINES: u32 = 16384;
+const GUEST_MIN_PAGES: u32 = 256;
 const GUEST_MAX_PAGES: u32 = 65536;
 
 /// Discover all functions and translate to one wasm module.
@@ -75,7 +79,7 @@ pub fn translate_program(
     b.export_global("fpuControl", control);
     let table_min = 1 + n + ((abi::API_END - abi::API_BASE) >> 2) + TRAMPOLINES;
     b.add_imported_table(table_min);
-    b.import_memory(256, Some(GUEST_MAX_PAGES));
+    b.import_memory(GUEST_MIN_PAGES, Some(GUEST_MAX_PAGES));
     let dispatch_import = b.add_import("env", "dispatch", i32_void);
     let block_trace_import = b.add_import("env", "blockTrace", i32_void);
     let fc = b.imported_func_count(); // 2
@@ -107,6 +111,7 @@ pub fn translate_program(
         blocks_by_func.push((*addr, keys));
         let mut map: Vec<InsnMapEntry> = Vec::new();
         let ctx = EmitCtx {
+            memory_minimum_pages: GUEST_MIN_PAGES,
             id: id_map,
             func_idx_of: &func_idx_of,
             idx_of,

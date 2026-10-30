@@ -16,6 +16,8 @@ use crate::x86::types::{Insn, MemOp, Operand, Reg};
 
 /// Function-local bindings used during instruction emission.
 pub struct EmitCtx<'a> {
+    /// Minimum pages required by this module's imported memory declaration.
+    pub memory_minimum_pages: u32,
     /// segment-start VA → dispatch id (per function)
     pub id: std::collections::BTreeMap<u32, i32>,
     /// sorted function VA → wasm func idx (guest callee)

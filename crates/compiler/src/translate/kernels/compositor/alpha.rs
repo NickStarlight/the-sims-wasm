@@ -63,6 +63,7 @@ fn masked_span(successor: i32, depth: i32, checkpointed: bool) -> Seq {
         Op::I32_SHR_U,
     ));
     code.extend(local_set(COUNT));
+    cache_bounds(&mut code);
     guard(&mut code, within(i32c(ALPHA), i64::from(DATA_BYTES)));
     guard(&mut code, binary(reg(abi::EBP), i32c(40), Op::I32_GE_U));
     let frame = binary(reg(abi::EBP), i32c(-40), Op::I32_ADD);
@@ -268,6 +269,7 @@ fn full_span(successor: i32, depth: i32, checkpointed: bool) -> Seq {
             ),
         );
     }
+    cache_bounds(&mut code);
     guard(&mut code, within(i32c(ALPHA), i64::from(DATA_BYTES)));
     guard(&mut code, binary(reg(abi::EBP), i32c(12), Op::I32_GE_U));
     let frame = binary(reg(abi::EBP), i32c(-12), Op::I32_ADD);

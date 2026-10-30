@@ -4,7 +4,7 @@
 //! scalar translation for aliases, invalid data and partial-fault behavior.
 
 use super::*;
-use crate::translate::{emit::emit_insn, emit_fpu::runs::Run};
+use crate::translate::{emit::emit_insn, emit_fpu::runs::Run, layout::FULL};
 use crate::x86::types::Insn;
 
 const ALPHA: i32 = 0x6e5c0c;
@@ -20,6 +20,25 @@ const DESTINATION: u32 = 5;
 const COUNT: u32 = 6;
 
 mod alpha;
+
+// The guarded spans never call out or grow memory. Keep their physical limit
+// in one scratch local: memory.size itself is a runtime helper in Firefox.
+fn cache_bounds(code: &mut Seq) {
+    code.extend(memory_bytes());
+    code.extend(local_set(FULL));
+}
+
+fn within(address: Seq, length: i64) -> Seq {
+    within_length(address, i64c(length))
+}
+
+fn within_length(address: Seq, length: Seq) -> Seq {
+    binary(
+        binary(extend(address), length, Op::I64_ADD),
+        local_get(FULL),
+        0x58,
+    )
+}
 
 pub(super) fn loop_kernel(
     address: u32,
@@ -71,6 +90,7 @@ fn full_span(successor: i32, depth: i32, checkpointed: bool) -> Seq {
             ),
         );
     }
+    cache_bounds(&mut code);
     guard(&mut code, within(i32c(ALPHA), i64::from(DATA_BYTES)));
     guard(&mut code, binary(reg(abi::EBP), i32c(24), Op::I32_GE_U));
     let frame = binary(reg(abi::EBP), i32c(-24), Op::I32_ADD);
@@ -228,6 +248,7 @@ fn prefix(tail: bool) -> Seq {
         code.extend([Op::I32_EQZ, Op::BR_IF, 0]);
     };
     guard(&mut code, binary(reg(abi::EDI), i32c(31), Op::I32_EQ));
+    cache_bounds(&mut code);
     guard(&mut code, within(i32c(ALPHA), i64::from(DATA_BYTES)));
     let weight_offset = if tail { 40 } else { 24 };
     guard(

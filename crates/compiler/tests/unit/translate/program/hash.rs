@@ -47,6 +47,7 @@ fn routines() -> Vec<(&'static str, Seq)> {
         ("fast_unpolled", true, false),
     ] {
         let context = EmitCtx {
+            memory_minimum_pages: 1,
             id: ids.clone(),
             func_idx_of: &functions,
             idx_of: 0,

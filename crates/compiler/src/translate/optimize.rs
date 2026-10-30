@@ -1,5 +1,6 @@
-//! Promote repeated CPU-global accesses within nontrapping, straight-line Wasm.
-//! Publish before every memory access, call, control-flow edge or possible trap.
+//! Promote repeated CPU-global accesses within straight-line Wasm.
+//! Publish dirty values before every possible trap, but retain clean locals
+//! across memory operations: guest memory cannot modify CPU-register globals.
 use super::{
     emit_helpers::{local_get, local_set, reg, set_reg},
     layout::CACHED_REGISTERS,
@@ -12,6 +13,7 @@ const REGISTERS: usize = 11;
 enum Access {
     Read(usize),
     Write(usize),
+    Memory,
     Pure,
     Barrier,
 }
@@ -37,8 +39,9 @@ pub(super) fn promote(code: &[u8]) -> (Vec<u8>, Vec<(u32, u32)>) {
                 Access::Write(global_index as usize)
             }
             _ => match code[start] {
+                0x28..=0x3e => Access::Memory,
                 // All other instructions are barriers, including integer
-                // division, float-to-integer truncation, memory and control.
+                // division, float-to-integer truncation and control.
                 0x01
                 | 0x1a..=0x24
                 | 0x41..=0x6c
@@ -68,6 +71,8 @@ pub(super) fn promote(code: &[u8]) -> (Vec<u8>, Vec<(u32, u32)>) {
             let mut uses = [0; REGISTERS];
             let mut written = [false; REGISTERS];
             let mut needs_load = [false; REGISTERS];
+            let mut pending = [false; REGISTERS];
+            let mut publications = [0; REGISTERS];
             for insn in run {
                 match insn.access {
                     Access::Read(r) => {
@@ -77,11 +82,24 @@ pub(super) fn promote(code: &[u8]) -> (Vec<u8>, Vec<(u32, u32)>) {
                     Access::Write(r) => {
                         uses[r] += 1;
                         written[r] = true;
+                        pending[r] = true;
+                    }
+                    Access::Memory => {
+                        for r in 0..REGISTERS {
+                            publications[r] += usize::from(pending[r]);
+                            pending[r] = false;
+                        }
                     }
                     _ => {}
                 }
             }
-            let cached: [bool; REGISTERS] = std::array::from_fn(|r| written[r] && uses[r] >= 3);
+            // A write-only register published at every access saves nothing.
+            // Cache only when hoisting actually removes a global operation.
+            let cached: [bool; REGISTERS] = std::array::from_fn(|r| {
+                let published = publications[r] + usize::from(pending[r]);
+                uses[r] >= 3 && uses[r] > published + usize::from(needs_load[r])
+            });
+            let mut dirty = [false; REGISTERS];
             offsets.push((run[0].start as u32, output.len() as u32));
             for r in 0..REGISTERS {
                 if cached[r] && needs_load[r] {
@@ -98,16 +116,17 @@ pub(super) fn promote(code: &[u8]) -> (Vec<u8>, Vec<(u32, u32)>) {
                         output.extend(local_get(CACHED_REGISTERS + r as u32))
                     }
                     Access::Write(r) if cached[r] => {
-                        output.extend(local_set(CACHED_REGISTERS + r as u32))
+                        output.extend(local_set(CACHED_REGISTERS + r as u32));
+                        dirty[r] = true;
+                    }
+                    Access::Memory => {
+                        publish(&mut output, &mut dirty);
+                        output.extend_from_slice(&code[insn.start..insn.end]);
                     }
                     _ => output.extend_from_slice(&code[insn.start..insn.end]),
                 }
             }
-            for (r, &cache) in cached.iter().enumerate() {
-                if cache {
-                    output.extend(set_reg(r as u8, local_get(CACHED_REGISTERS + r as u32)));
-                }
-            }
+            publish(&mut output, &mut dirty);
         }
         if end < instructions.len() {
             let insn = &instructions[end];
@@ -119,6 +138,15 @@ pub(super) fn promote(code: &[u8]) -> (Vec<u8>, Vec<(u32, u32)>) {
     }
     offsets.push((code.len() as u32, output.len() as u32));
     (output, offsets)
+}
+
+fn publish(output: &mut Vec<u8>, dirty: &mut [bool; REGISTERS]) {
+    for (r, changed) in dirty.iter_mut().enumerate() {
+        if *changed {
+            output.extend(set_reg(r as u8, local_get(CACHED_REGISTERS + r as u32)));
+            *changed = false;
+        }
+    }
 }
 
 #[cfg(test)]

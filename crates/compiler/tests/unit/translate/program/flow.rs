@@ -15,6 +15,7 @@ fn graph(direct: bool) -> Seq {
     let functions = HashMap::new();
     let imports = HashMap::new();
     let context = EmitCtx {
+        memory_minimum_pages: 1,
         id: (0..COUNT).map(|i| (i as u32, i as i32)).collect(),
         func_idx_of: &functions,
         idx_of: 0,

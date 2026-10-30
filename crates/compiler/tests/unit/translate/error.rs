@@ -16,6 +16,7 @@ fn emit_decoded(instruction: &Insn) -> Result<Vec<u8>, super::EmitError> {
     let functions = HashMap::new();
     let imports = HashMap::new();
     let context = EmitCtx {
+        memory_minimum_pages: 1,
         id: BTreeMap::new(),
         func_idx_of: &functions,
         idx_of: 0,

@@ -13,6 +13,7 @@ fn fused_pixels_preserve_registers_flags_memory_aliases_and_partial_faults() {
     let functions = HashMap::new();
     let imports = HashMap::new();
     let context = super::super::super::emit::EmitCtx {
+        memory_minimum_pages: 1,
         id: BTreeMap::new(),
         func_idx_of: &functions,
         idx_of: 0,
@@ -103,6 +104,7 @@ fn span_routines() -> Vec<(&'static str, Vec<u8>)> {
     let functions = HashMap::new();
     let imports = HashMap::new();
     let context = super::super::super::emit::EmitCtx {
+        memory_minimum_pages: 1,
         id: BTreeMap::new(),
         func_idx_of: &functions,
         idx_of: 0,
