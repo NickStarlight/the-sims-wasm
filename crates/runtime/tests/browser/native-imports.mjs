@@ -544,7 +544,17 @@ export async function nativeImportsSmoke(Process, directory) {
   try {
     reporting.host.calls = 39
     reporting.prepare()
-    assert.match(outcome(reporting.run).message, /report failure/)
+    const originalReport = reporting.host.report
+    const reportError = new Error('report failure')
+    reporting.host.report = () => {
+      throw reportError
+    }
+    assert.throws(reporting.run, (error) => {
+      assert.match(error.message, /report failure/)
+      assert.equal(error.cause, reportError)
+      return true
+    })
+    reporting.host.report = originalReport
     reporting.prepare()
     reporting.run()
     assert.equal(reporting.host.calls, 41)

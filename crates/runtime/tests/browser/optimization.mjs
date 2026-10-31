@@ -106,5 +106,23 @@ export async function optimizationSmoke(Process, directory) {
   stack(88); host.callImport(binding);
   reject(new Error('scheduled failure'));
   await assert.rejects(rejected, /args=0x4d/);
+  const nativeFailure = new Error('recursive use of an object detected');
+  const originalCall = process.call;
+  process.call = () => { throw nativeFailure; };
+  stack(41);
+  assert.throws(() => host.callImport(binding), error => {
+    assert.equal(error.cause, nativeFailure);
+    assert.match(error.message, /test!sync:.*args=0x29/);
+    return true;
+  });
+  process.call = originalCall;
+  const originalSelect = process.setThread;
+  process.setThread = () => { throw nativeFailure; };
+  assert.throws(() => host.callImport(binding), error => {
+    assert.equal(error.cause, nativeFailure);
+    assert.match(error.message, /test!sync:.*selecting thread 7/);
+    return true;
+  });
+  process.setThread = originalSelect;
   console.log('Optimization regressions: scheduler fairness, bounded file cache, deferred Wasm files, dispatcher memory growth and reentry passed');
 }

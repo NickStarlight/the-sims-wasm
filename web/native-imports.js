@@ -66,6 +66,7 @@ function failure(binding, address, first, second, third, fourth, error) {
 
   return new Error(
     `${binding.label}: ${error.message}; args=${args.map((value) => '0x' + (value >>> 0).toString(16)).join(',')} (caller 0x${(address >>> 0).toString(16)})`,
+    { cause: error },
   )
 }
 

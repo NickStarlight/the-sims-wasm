@@ -24,6 +24,9 @@ const display = createDisplay(
 const gameForm = document.querySelector('#game-form')
 const playButton = gameForm.querySelector('button[type=submit]')
 const playStatus = document.querySelector('#play-status')
+const errorDetails = document.querySelector('#error-details')
+const errorReport = document.querySelector('#error-report')
+const copyErrorStatus = document.querySelector('#copy-error-status')
 const launcher = document.querySelector('.launch-shell')
 const gamePanel = document.querySelector('.game-panel')
 const folderHelp = document.querySelector('#folder-help')
@@ -32,6 +35,19 @@ let directory
 let selectedFiles = []
 let choosingFolder = false
 let musicFinished = false
+
+document.querySelector('#copy-error').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(errorReport.value)
+    copyErrorStatus.textContent = 'Copied. Paste these details with your bug report.'
+  } catch {
+    errorReport.hidden = false
+    errorReport.focus()
+    errorReport.select()
+    copyErrorStatus.textContent = 'Copy the selected details below.'
+  }
+})
+
 launcherMusic.volume = 0.45
 const musicReady = fetch(launcherMusic.getAttribute('src'))
   .then((response) => {
@@ -203,6 +219,8 @@ gameForm.addEventListener('submit', async (event) => {
   launcher.hidden = true
   folderHelp.hidden = true
   gamePanel.hidden = false
+  errorDetails.hidden = true
+  errorReport.value = ''
   audio.stop()
   executing = false
   display.reset()
@@ -267,7 +285,7 @@ function showResult({ data }) {
   if (data.error) {
     console.error(data.stack ?? data.error)
 
-    return finish(data.error)
+    return finish(data.error, data.stack)
   }
 }
 
@@ -279,19 +297,36 @@ function startWorker(source = './worker.js') {
   }
 
   instance.onerror = (event) => {
-    if (instance === worker) finish(`Worker failed: ${event.message}`)
+    if (instance === worker) finish(`Worker failed: ${event.message}`, event.error?.stack)
   }
 
   return instance
 }
 
-function finish(message = '') {
+function finish(message = '', stack = '') {
   worker.terminate()
   audio?.stop()
   executing = false
   playButton.disabled = !directory && !selectedFiles.length
   playStatus.classList.remove('compiling')
   playStatus.textContent = message
+  errorDetails.hidden = !message
+  errorReport.hidden = true
+  errorReport.value = message
+    ? JSON.stringify(
+        {
+          message,
+          stack,
+          browser: navigator.userAgent,
+          platform: navigator.platform,
+          page: location.origin + location.pathname,
+          date: new Date().toISOString(),
+        },
+        null,
+        2,
+      )
+    : ''
+  copyErrorStatus.textContent = ''
   launcher.hidden = false
   folderHelp.hidden = false
   gamePanel.hidden = true

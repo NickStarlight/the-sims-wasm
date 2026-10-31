@@ -53,8 +53,13 @@ export async function completeCall(process, request, callGuest, selectThread = (
       selectThread()
       outcome = JSON.parse(process.resumeCall(token, result))
     } catch (error) {
-      selectThread()
-      process.cancelCall(token)
+      try {
+        selectThread()
+        process.cancelCall(token)
+      } catch {
+        // A failed callback can leave Rust borrowed; cleanup must not replace it.
+      }
+
       throw error
     }
   }
