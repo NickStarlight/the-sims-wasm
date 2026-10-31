@@ -1,7 +1,7 @@
 import { virtualKey } from './keyboard.js'
 import { createFrameRenderer } from './frame-renderer.js'
 
-export function createDisplay(canvas, sendInput, frameStatus) {
+export function createDisplay(canvas, sendInput, frameStatus, onPaint) {
   let renderer
   const getRenderer = () => (renderer ??= createFrameRenderer(canvas))
   let pendingFrame
@@ -32,12 +32,14 @@ export function createDisplay(canvas, sendInput, frameStatus) {
     const { width, height } = frame
     pendingFrame = null
     const firstFrame = !hasFrame
+    const started = onPaint ? performance.now() : 0
 
     if (canvas.width !== width) canvas.width = width
 
     if (canvas.height !== height) canvas.height = height
 
     getRenderer().paint(frame)
+    onPaint?.(frame, performance.now() - started)
     hasFrame = true
     frameStatus.textContent = 'Game frame received.'
 
@@ -168,6 +170,9 @@ export function createDisplay(canvas, sendInput, frameStatus) {
   })
 
   return {
+    get rendererInfo() {
+      return getRenderer().info
+    },
     get packedFrames() {
       return getRenderer().packed
     },

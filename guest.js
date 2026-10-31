@@ -34,6 +34,7 @@ export async function runGuest(
     onPresent,
     presenter,
     onPhase = () => {},
+    onDiagnostics = () => {},
   } = {},
 ) {
   const mark = (name) => onPhase({ name, atMs: performance.timeOrigin + performance.now() })
@@ -87,6 +88,19 @@ export async function runGuest(
       report,
       presentFrame,
     )
+    onDiagnostics(() => ({
+      atMs: performance.timeOrigin + performance.now(),
+      calls: dispatcher.calls,
+      lastCall: dispatcher.lastCall,
+      yields: scheduler.yields,
+      suspendedMs: scheduler.suspendedMs,
+      pacedMs: scheduler.pacedMs,
+      sourceReadMs: assetStats?.sourceReadMs ?? 0,
+      sourceBytes: assetStats?.sourceBytes ?? 0,
+      activeThreads: threads.tasks.size + 1,
+      pendingWaits: threads.waits.size,
+      guestMemoryBytes: memory.buffer.byteLength,
+    }))
     presenter?.onTransfer?.(() => {
       if (threads.hasBackgroundWork()) scheduler.deferFrame(16)
     })
@@ -144,6 +158,7 @@ export async function runGuest(
     // a binding poisoned by a raw trap must not hide the original exception.
     for (const close of [
       () => clearInterval(progressTimer),
+      () => onDiagnostics(null),
       () => presenter?.onTransfer?.(null),
       () => onReady(null),
       () => threads?.close(),

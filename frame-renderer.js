@@ -11,6 +11,9 @@ export function createFrameRenderer(canvas) {
 
     return {
       packed: false,
+      get info() {
+        return { kind: 'canvas2d', width: canvas.width, height: canvas.height }
+      },
       paint({ width, height, pixels, format = 32, pitch = width * 4 }) {
         let rgba
 
@@ -125,6 +128,17 @@ export function createFrameRenderer(canvas) {
   initialize()
   const renderer = {
     packed: true,
+    get info() {
+      const debug = gl.getExtension('WEBGL_debug_renderer_info')
+
+      return {
+        kind: 'webgl2',
+        vendor: gl.getParameter(debug ? debug.UNMASKED_VENDOR_WEBGL : gl.VENDOR),
+        renderer: gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER),
+        width: canvas.width,
+        height: canvas.height,
+      }
+    },
     paint(frame) {
       lastFrame = frame
       const { width, height, format = 32, pitch = width * 4 } = frame

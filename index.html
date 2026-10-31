@@ -91,6 +91,32 @@
         </div>
       </section>
       <p id="play-status" role="status"></p>
+      <button id="performance-toggle" type="button" hidden>Performance</button>
+      <section id="performance-panel" aria-labelledby="performance-title" hidden>
+        <div class="performance-heading">
+          <h2 id="performance-title">Performance</h2>
+          <button id="performance-hide" type="button">Hide</button>
+        </div>
+        <label for="performance-label">Sample label</label>
+        <input id="performance-label" placeholder="e.g. iPad, paused camera drag" />
+        <pre id="performance-values"></pre>
+        <p class="performance-note">
+          Last 15 seconds; collection continues while hidden. *Next frame after input is an estimate
+          of response time. GPU/display latency is not measured.
+        </p>
+        <div class="performance-actions">
+          <button id="performance-reset" type="button">Reset sample</button>
+          <button id="performance-copy" type="button">Copy report</button>
+        </div>
+        <p id="performance-status" role="status"></p>
+        <textarea
+          id="performance-report"
+          aria-label="Performance report"
+          rows="8"
+          readonly
+          hidden
+        ></textarea>
+      </section>
       <section id="error-details" aria-label="Error report" hidden>
         <button id="copy-error" type="button">Copy error details</button>
         <p id="copy-error-status" role="status"></p>
