@@ -2,6 +2,7 @@ import initRuntime, { Process } from './runtime.js'
 import { API_BASE } from './linker.js'
 import { createFileReaders } from './file-source.js'
 import { openAssetCache } from './asset-cache.js'
+import { protectProcess } from './runtime-access.js'
 
 export const registerNames = [
   'eax',
@@ -27,7 +28,7 @@ const ready = initRuntime()
 export async function createMachine(program, report) {
   await ready
   const memory = new WebAssembly.Memory({ initial: 256, maximum: 32768 })
-  const process = new Process(memory, 0x1000000, 0x80000000)
+  const process = protectProcess(new Process(memory, 0x1000000, 0x80000000))
 
   let assetCache
 

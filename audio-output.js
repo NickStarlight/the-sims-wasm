@@ -1,7 +1,9 @@
 /** Page-owned AudioContext; PCM travels directly from the game worker to the
  * audio worklet over a transferred port. No guest RAM crosses this boundary. */
 
-export function serveAudio(port, render) {
+export function serveAudio(port, render, schedule = (run) => run()) {
+  let closed = false
+
   port.onmessage = (e) => {
     const { frames, rate } = e.data ?? {}
 
@@ -15,13 +17,18 @@ export function serveAudio(port, render) {
     )
       return
 
-    const left = new Float32Array(frames)
-    const right = new Float32Array(frames)
-    render()?.(left, right, rate)
-    port.postMessage({ left, right }, [left.buffer, right.buffer])
+    schedule(() => {
+      if (closed) return
+
+      const left = new Float32Array(frames)
+      const right = new Float32Array(frames)
+      render()?.(left, right, rate)
+      port.postMessage({ left, right }, [left.buffer, right.buffer])
+    })
   }
 
   return () => {
+    closed = true
     port.onmessage = null
     port.close()
   }

@@ -1,6 +1,7 @@
 import { createThreadContext } from './machine.js'
 import { createExecution } from './execution.js'
 import { GuestThreadExit } from './scheduler.js'
+import { deferProcessTask } from './runtime-access.js'
 
 // Rust owns lifecycle, wait decisions and register descriptors. JS owns only suspended stacks.
 export class ThreadHost {
@@ -100,6 +101,11 @@ export class ThreadHost {
   }
 
   drain(launch = true) {
+    const pending = deferProcessTask(this.process, () => this.drainNow(launch))
+    pending?.catch((error) => this.abort(error))
+  }
+
+  drainNow(launch) {
     if (this.signal.aborted) return
 
     this.process.advanceTime(performance.now())
@@ -116,13 +122,17 @@ export class ThreadHost {
     if (launch && !this.launchScheduled) {
       this.launchScheduled = true
       queueMicrotask(() => {
-        this.launchScheduled = false
+        const launch = () => {
+          this.launchScheduled = false
 
-        if (this.signal.aborted) return
+          if (this.signal.aborted) return
 
-        try {
           for (const descriptor of JSON.parse(this.process.takeRunnableThreads()))
             this.start(descriptor)
+        }
+
+        try {
+          deferProcessTask(this.process, launch)?.catch((error) => this.abort(error))
         } catch (error) {
           this.abort(error)
         }
@@ -158,41 +168,48 @@ export class ThreadHost {
   start(descriptor) {
     // Rust has committed the runnable transition before returning this descriptor.
     const task = Promise.resolve()
-      .then(async () => {
-        this.signal.throwIfAborted()
-        const machine = {
-          process: this.process,
-          memory: this.memory,
-          ...createThreadContext(this.metadata, descriptor),
-        }
-        const execution = createExecution(
-          this.module,
-          machine,
-          this.imports,
-          this,
-          this.report,
-          this.presentFrame,
-        )
-        const code = await execution
-          .callGuest(descriptor.entry, [descriptor.parameter])
-          .catch((error) => {
-            if (!(error instanceof GuestThreadExit)) throw error
+      .then(() =>
+        deferProcessTask(this.process, async () => {
+          this.signal.throwIfAborted()
+          const machine = {
+            process: this.process,
+            memory: this.memory,
+            ...createThreadContext(this.metadata, descriptor),
+          }
+          const execution = createExecution(
+            this.module,
+            machine,
+            this.imports,
+            this,
+            this.report,
+            this.presentFrame,
+          )
+          const code = await execution
+            .callGuest(descriptor.entry, [descriptor.parameter])
+            .catch((error) => {
+              if (!(error instanceof GuestThreadExit)) throw error
 
-            return error.code
+              return error.code
+            })
+
+          await deferProcessTask(this.process, () => {
+            this.signal.throwIfAborted()
+            this.process.finishThread(descriptor.id, code)
+            this.drain()
           })
+        }),
+      )
+      .catch((error) =>
+        deferProcessTask(this.process, () => {
+          try {
+            this.process.finishThread(descriptor.id, 0xc0000005)
+          } catch (cleanupError) {
+            this.cleanupFailure ??= { error: cleanupError }
+          }
 
-        this.process.finishThread(descriptor.id, code)
-        this.drain()
-      })
-      .catch((error) => {
-        try {
-          this.process.finishThread(descriptor.id, 0xc0000005)
-        } catch (cleanupError) {
-          this.cleanupFailure ??= { error: cleanupError }
-        }
-
-        this.abort(error)
-      })
+          this.abort(error)
+        }),
+      )
     this.tasks.add(task)
     task.finally(() => this.tasks.delete(task))
   }
@@ -203,22 +220,25 @@ export class ThreadHost {
     this.cancellation.abort(reason)
     clearTimeout(this.timer)
 
-    for (const [token, wait] of this.waits) {
-      for (const close of [() => this.process.cancelWait(token), () => wait.reject(reason)]) {
-        try {
-          close()
-        } catch (error) {
-          this.cleanupFailure ??= { error }
+    const waits = [...this.waits]
+    this.waits.clear()
+    this.abortCleanup = deferProcessTask(this.process, () => {
+      for (const [token, wait] of waits) {
+        for (const close of [() => this.process.cancelWait(token), () => wait.reject(reason)]) {
+          try {
+            close()
+          } catch (error) {
+            this.cleanupFailure ??= { error }
+          }
         }
       }
-    }
-
-    this.waits.clear()
+    })
   }
 
   async close() {
     const abortedBeforeClose = this.signal.aborted
     this.abort(new Error('Guest process stopped.'))
+    await this.abortCleanup
     await Promise.allSettled([...this.tasks])
 
     if (this.cleanupFailure) {
