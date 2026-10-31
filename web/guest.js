@@ -6,6 +6,23 @@ import { ThreadHost } from './threads.js'
 import { initializationOrder, prepareImports } from './linker.js'
 import { openSaveStorage } from './storage.js'
 
+// Preserve underlying runtime stacks when converting errors to worker messages.
+// The guest-address wrapper alone cannot identify the failing native entry.
+export function describeGuestError(error) {
+  const stack = []
+  const seen = new Set()
+
+  for (let cause = error; cause != null && !seen.has(cause); cause = cause.cause) {
+    seen.add(cause)
+    stack.push(cause.stack || cause.message || String(cause))
+  }
+
+  return {
+    error: error?.message ?? String(error),
+    stack: stack.join('\nCaused by: '),
+  }
+}
+
 export async function runGuest(
   program,
   report,

@@ -63,7 +63,25 @@ export async function cleanupSmoke(directory) {
     }
     const { use, GuestThreadExit } = await import(pathToFileURL(join(temp, 'fixture.mjs')))
     const { createMachine } = await import(pathToFileURL(join(temp, 'machine.mjs')))
-    const { runGuest } = await import(pathToFileURL(join(temp, 'guest.mjs')))
+    const { describeGuestError, runGuest } = await import(pathToFileURL(join(temp, 'guest.mjs')))
+    const native = new Error('recursive use of an object detected')
+    native.stack = 'Error: recursive use\n    at Process.setThread (runtime.js:123)'
+    const wrapped = new Error('guest instruction=0x42a3ae', { cause: native })
+    wrapped.stack = 'Error: guest instruction=0x42a3ae\n    at runGuest (guest.js:100)'
+    const report = describeGuestError(wrapped)
+    assert.equal(report.error, wrapped.message, 'keep the launcher message unchanged')
+    assert.equal(report.stack, wrapped.stack + '\nCaused by: ' + native.stack)
+    assert.deepEqual(structuredClone(report), report, 'cause stacks survive worker messaging')
+    native.cause = wrapped
+    assert.deepEqual(describeGuestError(wrapped), report, 'cyclic causes terminate')
+    assert.deepEqual(describeGuestError('plain failure'), {
+      error: 'plain failure',
+      stack: 'plain failure',
+    })
+    assert.deepEqual(describeGuestError({ message: 'Storage unavailable', stack: '' }), {
+      error: 'Storage unavailable',
+      stack: 'Storage unavailable',
+    })
     Object.defineProperty(globalThis, 'FileReaderSync', {
       configurable: true,
       value: class {},
