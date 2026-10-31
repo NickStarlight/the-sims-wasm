@@ -269,5 +269,8 @@ await continuationCleanupSmoke(moduleUrl);
 const { reentrySmoke } = await import('./reentry.mjs');
 await reentrySmoke(Process, moduleUrl);
 
+const { performanceSmoke } = await import('./performance.mjs');
+await performanceSmoke(moduleUrl);
+
 const { pwaSmoke } = await import('./pwa.mjs');
 await pwaSmoke(moduleUrl);

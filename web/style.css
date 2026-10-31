@@ -326,6 +326,54 @@ dialog form {
   text-align: left;
   user-select: text;
 }
+#performance-panel {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 5;
+  width: min(370px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 16px;
+  color: #dcebf4;
+  background: #081220f2;
+  border: 1px solid #668796;
+  border-radius: 8px;
+}
+.performance-heading,
+.performance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.performance-heading h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+#performance-panel input,
+#performance-report {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  user-select: text;
+}
+#performance-values {
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.performance-note,
+#performance-status {
+  font-size: 12px;
+  line-height: 1.4;
+}
+#performance-toggle {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  top: max(12px, env(safe-area-inset-top));
+  z-index: 5;
+}
 #update-status {
   position: fixed;
   top: 12px;

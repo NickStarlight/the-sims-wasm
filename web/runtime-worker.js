@@ -6,8 +6,18 @@ import { deferProcessTask } from './runtime-access.js'
 let owner
 let closeAudio
 let presented = false
+let performanceEnabled = false
+let readDiagnostics
+let latestInput
 
 const sendFrame = (frame) => {
+  if (performanceEnabled) {
+    frame.diagnostics = {
+      sentAtMs: performance.timeOrigin + performance.now(),
+      input: latestInput,
+    }
+  }
+
   if (!presented) {
     presented = true
     self.postMessage({ progress: `First game frame received (${frame.width}×${frame.height}).` })
@@ -32,6 +42,30 @@ function scheduleHostTask(run) {
 }
 
 self.onmessage = async ({ data }) => {
+  if (data.kind === 'performance') {
+    performanceEnabled = Boolean(data.enabled)
+    latestInput = undefined
+
+    return
+  }
+
+  if (data.kind === 'performance-reset') {
+    latestInput = undefined
+
+    return
+  }
+
+  if (data.kind === 'performance-poll') {
+    if (performanceEnabled)
+      scheduleHostTask(() => {
+        const snapshot = readDiagnostics?.()
+
+        if (snapshot) self.postMessage({ performance: snapshot })
+      })
+
+    return
+  }
+
   if (data.kind === 'frame-ready') {
     scheduleHostTask(() => frames.acknowledge())
 
@@ -68,28 +102,39 @@ self.onmessage = async ({ data }) => {
   }
 
   if (data.kind === 'mouse') {
-    scheduleHostTask(() => owner?.mouseInput(data.x, data.y, data.buttons))
+    scheduleHostTask(() => {
+      owner?.mouseInput(data.x, data.y, data.buttons)
+      recordInput(data)
+    })
 
     return
   }
 
   if (data.kind === 'key') {
-    scheduleHostTask(() => owner?.keyInput(data.code, data.down, data.repeat))
+    scheduleHostTask(() => {
+      owner?.keyInput(data.code, data.down, data.repeat)
+      recordInput(data)
+    })
 
     return
   }
 
   try {
+    performanceEnabled = Boolean(data.performanceEnabled)
     frames.setPacked(data.packedFrames)
     await runGuest(data, (progress) => self.postMessage({ progress }), {
       onReady(process) {
         owner = process
 
         if (!process) {
+          readDiagnostics = undefined
           frames.close()
           closeAudio?.()
           closeAudio = undefined
         }
+      },
+      onDiagnostics(read) {
+        readDiagnostics = read
       },
       onRegistry(registry) {
         self.postMessage({ registry, clientId: data.clientId })
@@ -104,4 +149,10 @@ self.onmessage = async ({ data }) => {
   } catch (error) {
     self.postMessage(describeGuestError(error))
   }
+}
+
+function recordInput(data) {
+  if (!performanceEnabled || !data.diagnostics) return
+
+  latestInput = { ...data.diagnostics, appliedAtMs: performance.timeOrigin + performance.now() }
 }

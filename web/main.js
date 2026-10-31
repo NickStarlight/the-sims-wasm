@@ -3,24 +3,43 @@ import { createDisplay } from './presentation.js'
 import { BrowserAudio } from './audio-output.js'
 import { loadRegistry, storeRegistry, resetProgress } from './storage.js'
 import { checkForAppUpdate } from './pwa.js'
+import { createPerformancePanel } from './performance.js'
 
 let audio
 
 let worker = startWorker()
 let executing = false
 let resetting = false
+let inputSequence = 0
 const canvas = document.querySelector('canvas')
 const display = createDisplay(
   canvas,
   (message) => {
     if (!executing) return false
 
+    if (diagnostics?.enabled && (message.kind === 'mouse' || message.kind === 'key')) {
+      message = {
+        ...message,
+        diagnostics: {
+          sequence: ++inputSequence,
+          sentAtMs: performance.timeOrigin + performance.now(),
+        },
+      }
+    }
+
     worker.postMessage(message)
 
     return true
   },
   document.querySelector('#frame-status'),
+  (frame, paintMs) => diagnostics?.paint(frame, paintMs),
 )
+const diagnostics = createPerformancePanel(display, (message) => {
+  if (executing) worker.postMessage(message)
+})
+
+if (new URL(location.href).searchParams.get('perf') === '1') diagnostics.open()
+
 const gameForm = document.querySelector('#game-form')
 const playButton = gameForm.querySelector('button[type=submit]')
 const playStatus = document.querySelector('#play-status')
@@ -224,6 +243,7 @@ gameForm.addEventListener('submit', async (event) => {
   audio.stop()
   executing = false
   display.reset()
+  diagnostics.reset()
   worker.terminate()
   worker = startWorker()
   playButton.disabled = true
@@ -233,6 +253,18 @@ gameForm.addEventListener('submit', async (event) => {
 })
 
 function showResult({ data }) {
+  if (data.phase) {
+    diagnostics.phase(data.phase)
+
+    return
+  }
+
+  if (data.performance) {
+    diagnostics.runtime(data.performance)
+
+    return
+  }
+
   if (data.registry !== undefined) {
     storeRegistry(data.registry, data.clientId)
 
@@ -240,6 +272,7 @@ function showResult({ data }) {
   }
 
   if (data.frame) {
+    diagnostics.receive()
     display.present(data.frame)
 
     return
@@ -257,9 +290,11 @@ function showResult({ data }) {
         registry: loadRegistry(data.program.clientId),
         frameAcknowledgements: true,
         packedFrames: display.packedFrames,
+        performanceEnabled: diagnostics.enabled,
       },
       [data.program.wasm.buffer, data.program.imageBytes.buffer],
     )
+    diagnostics.program(data.program.clientId)
     const audioWorker = worker
     audio
       ?.connect()

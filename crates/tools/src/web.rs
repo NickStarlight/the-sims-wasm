@@ -42,6 +42,7 @@ const WEB_ASSETS: &[&str] = &[
     "manifest.webmanifest",
     "memory-ops.js",
     "native-imports.js",
+    "performance.js",
     "presentation.js",
     "pwa.js",
     "runtime-access.js",
