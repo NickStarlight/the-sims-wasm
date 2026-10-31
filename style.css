@@ -162,7 +162,8 @@ main {
 button {
   cursor: pointer;
 }
-dialog button {
+dialog button,
+#copy-error {
   padding: 8px 18px;
   color: white;
   background: linear-gradient(#365ca2, #080c58);
@@ -300,6 +301,30 @@ dialog form {
   padding: 8px;
   background: #000e;
   z-index: 2;
+}
+#error-details {
+  position: fixed;
+  top: max(64px, env(safe-area-inset-top));
+  left: 16px;
+  right: 16px;
+  max-width: 640px;
+  max-height: 65dvh;
+  margin: auto;
+  padding: 16px;
+  overflow: auto;
+  text-align: center;
+  background: #000e;
+  z-index: 4;
+}
+#copy-error-status:empty {
+  display: none;
+}
+#error-report {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  text-align: left;
+  user-select: text;
 }
 #update-status {
   position: fixed;

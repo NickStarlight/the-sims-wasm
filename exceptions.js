@@ -20,8 +20,13 @@ export async function dispatchException(dispatcher, id, args) {
       dispatcher.selectThread()
       action = JSON.parse(process.resumeException(token, snapshot()))
     } catch (error) {
-      dispatcher.selectThread()
-      process.cancelException(token)
+      try {
+        dispatcher.selectThread()
+        process.cancelException(token)
+      } catch {
+        // Preserve the handler/resume failure if the Rust owner is now poisoned.
+      }
+
       throw error
     }
   }

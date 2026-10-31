@@ -1,7 +1,7 @@
 // The packager fills these from the complete, staged build (including the Wasm files).
 const precache = ["asset-cache.js","audio-output.js","callbacks.js","compiled-cache.js","compiler-build.json","compiler.d.ts","compiler.js","compiler_bg.wasm","compiler_bg.wasm.d.ts","conditional-suspension.js","dispatch.js","exceptions.js","execution.js","file-source.js","folder.js","frame-output.js","frame-renderer.js","game.js","guest-memory.js","guest.js","icon-180.png","icon-192.png","icon-512.png","icon.svg","index.html","keyboard.js","launcher-background.png","launcher-folder.png","launcher-info.png","launcher-music.wav","launcher-play.png","linker.js","machine.js","main.js","manifest.webmanifest","memory-ops.js","native-imports.js","presentation.js","pwa.js","runtime-worker.js","runtime.d.ts","runtime.js","runtime_bg.wasm","runtime_bg.wasm.d.ts","scheduler.js","storage.js","style.css","sync-imports.js","threads.js","worker.js"]
 const cachePrefix = `sims-web:${self.registration.scope}:`
-const cacheName = `${cachePrefix}ed5e8065ab1336df`
+const cacheName = `${cachePrefix}ea3dd6cd844af478`
 const urls = new Set(precache.map((path) => new URL(path, self.registration.scope).href))
 
 self.addEventListener('install', (event) => {

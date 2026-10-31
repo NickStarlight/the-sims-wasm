@@ -167,6 +167,7 @@ export class ApiDispatcher {
 
       throw new Error(
         `${binding.label}: ${error.message}; args=${args.map((value) => '0x' + value.toString(16)).join(',')} (caller 0x${returnAddress.toString(16)})`,
+        { cause: error },
       )
     }
   }
@@ -206,7 +207,14 @@ export class ApiDispatcher {
     if (binding.api.media && !timersPumped)
       return this.pumpMediaTimers().then(() => this.callImport(binding, true))
 
-    this.selectThread()
+    try {
+      this.selectThread()
+    } catch (error) {
+      throw new Error(`${binding.label}: ${error.message} (selecting thread ${this.threadId})`, {
+        cause: error,
+      })
+    }
+
     const stack = this.registers.esp.value >>> 0
     const buffer = this.memory.buffer
 
@@ -237,6 +245,7 @@ export class ApiDispatcher {
             `${binding.label}: ${error.message}; args=${[...args]
               .map((value) => '0x' + value.toString(16))
               .join(',')} (caller 0x${returnAddress.toString(16)})`,
+            { cause: error },
           )
 
     try {
