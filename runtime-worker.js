@@ -1,5 +1,5 @@
 import { createFramePresenter } from './frame-output.js'
-import { runGuest } from './guest.js'
+import { describeGuestError, runGuest } from './guest.js'
 import { serveAudio } from './audio-output.js'
 
 let owner
@@ -85,6 +85,6 @@ self.onmessage = async ({ data }) => {
     })
     self.postMessage({ finished: 'Guest stopped.' })
   } catch (error) {
-    self.postMessage({ error: error.message, stack: error.stack })
+    self.postMessage(describeGuestError(error))
   }
 }
