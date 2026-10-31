@@ -21,6 +21,8 @@ export default async function init() {}
 export class Process { constructor() { return state.process } }
 export const API_BASE = 0x800000
 export function createFileReaders() { return () => () => new Uint8Array() }
+export function protectProcess(process) { return process }
+export function deferProcessTask(process, run) { return run() }
 export async function openAssetCache() { return state.assetCache }
 export async function createMachine() { return state.machine }
 export function consumeFrame() {}

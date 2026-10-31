@@ -1,4 +1,5 @@
 import { suspendWhenNeeded } from './conditional-suspension.js'
+import { deferProcessTask } from './runtime-access.js'
 
 // Each execution owner has one suspended guest stack; input is queued separately.
 export class GuestThreadExit extends Error {
@@ -12,11 +13,13 @@ let taskChannel
 const pendingTasks = []
 
 // A message is an actual event-loop turn, without nested timer clamping.
-export function yieldToHost() {
+export function yieldToHost(process) {
+  const resume = (resolve) => () => deferProcessTask(process, resolve)
+
   // Node's MessagePort queue can keep its poll phase busy and delay timers.
   // setImmediate yields to its next check phase without the timer minimum.
   if (typeof globalThis.setImmediate === 'function')
-    return new Promise((resolve) => globalThis.setImmediate(resolve))
+    return new Promise((resolve) => globalThis.setImmediate(resume(resolve)))
 
   // Scheduler.yield continuations outrank worker messages and timers in Chrome.
   // A continuously running guest can starve input, frame acknowledgements and
@@ -38,13 +41,13 @@ export function yieldToHost() {
   }
 
   return new Promise((resolve) => {
-    pendingTasks.push(resolve)
+    pendingTasks.push(resume(resolve))
     taskChannel.port1.ref?.()
     taskChannel.port2.postMessage(null)
   })
 }
 
-export function createScheduler(signal) {
+export function createScheduler(signal, process) {
   if (!WebAssembly.Suspending || !WebAssembly.promising) {
     throw new Error('Game execution requires Chrome 137+, Firefox 153+, or Safari 27+.')
   }
@@ -73,8 +76,10 @@ export function createScheduler(signal) {
     if (paced) pacedYields++
 
     const waiting = paced
-      ? new Promise((resolve) => setTimeout(resolve, Math.min(frameDelay, 16)))
-      : yieldToHost()
+      ? new Promise((resolve) =>
+          setTimeout(() => deferProcessTask(process, resolve), Math.min(frameDelay, 16)),
+        )
+      : yieldToHost(process)
 
     return waiting.then(() => {
       const now = performance.now()
@@ -107,7 +112,11 @@ export function createScheduler(signal) {
     run: (fn, ...args) => {
       signal?.throwIfAborted()
 
-      return WebAssembly.promising(fn)(...args)
+      return deferProcessTask(process, () => {
+        signal?.throwIfAborted()
+
+        return WebAssembly.promising(fn)(...args)
+      })
     },
     get yields() {
       return yields

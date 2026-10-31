@@ -6,7 +6,7 @@ import { registerNames } from './machine.js'
 import { installSynchronousImports, installScheduledImports } from './sync-imports.js'
 
 export function createExecution(module, machine, imports, host, report, presentFrame) {
-  const scheduler = createScheduler(host.signal)
+  const scheduler = createScheduler(host.signal, machine.process)
   const dispatcher = new ApiDispatcher(machine, scheduler, report, presentFrame)
   dispatcher.threads = host
 

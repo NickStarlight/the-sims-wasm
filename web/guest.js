@@ -5,6 +5,7 @@ import { createExecution } from './execution.js'
 import { ThreadHost } from './threads.js'
 import { initializationOrder, prepareImports } from './linker.js'
 import { openSaveStorage } from './storage.js'
+import { deferProcessTask } from './runtime-access.js'
 
 // Preserve underlying runtime stacks when converting errors to worker messages.
 // The guest-address wrapper alone cannot identify the failing native entry.
@@ -56,6 +57,7 @@ export async function runGuest(
   let threads
   let progressTimer
   let failed = false
+  let running = true
 
   try {
     mark('assets-registered')
@@ -89,10 +91,19 @@ export async function runGuest(
       if (threads.hasBackgroundWork()) scheduler.deferFrame(16)
     })
     progressTimer = setInterval(() => {
-      assetCache?.flush()
-      report(
-        `Guest progress: ${dispatcher.calls} calls; last=${dispatcher.lastCall}; instruction=0x${(registers.trap_va.value >>> 0).toString(16)}; ${threads.waits.size} pending waits; ${threads.tasks.size} active threads; ${scheduler.yields} yields (${scheduler.suspendedMs.toFixed(1)} ms suspended, max ${scheduler.longestYieldMs.toFixed(1)} ms); paced=${scheduler.pacedYields}/${scheduler.pacedMs.toFixed(1)}ms; asset reads=${JSON.stringify({ ...assetStats, persistent: assetCache?.stats })}`,
-      )
+      try {
+        const pending = deferProcessTask(process, () => {
+          if (!running) return
+
+          assetCache?.flush()
+          report(
+            `Guest progress: ${dispatcher.calls} calls; last=${dispatcher.lastCall}; instruction=0x${(registers.trap_va.value >>> 0).toString(16)}; ${threads.waits.size} pending waits; ${threads.tasks.size} active threads; ${scheduler.yields} yields (${scheduler.suspendedMs.toFixed(1)} ms suspended, max ${scheduler.longestYieldMs.toFixed(1)} ms); paced=${scheduler.pacedYields}/${scheduler.pacedMs.toFixed(1)}ms; asset reads=${JSON.stringify({ ...assetStats, persistent: assetCache?.stats })}`,
+          )
+        })
+        pending?.catch((error) => threads.abort(error))
+      } catch (error) {
+        threads.abort(error)
+      }
     }, 5000)
 
     for (const image of initializationOrder(program.plan.images)) {
@@ -125,6 +136,7 @@ export async function runGuest(
       { cause: error },
     )
   } finally {
+    running = false
     let cleanupFailed = false
     let cleanupError
 

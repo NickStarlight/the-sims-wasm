@@ -44,6 +44,7 @@ const WEB_ASSETS: &[&str] = &[
     "native-imports.js",
     "presentation.js",
     "pwa.js",
+    "runtime-access.js",
     "runtime-worker.js",
     "scheduler.js",
     "storage.js",

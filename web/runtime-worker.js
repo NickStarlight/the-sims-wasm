@@ -1,6 +1,7 @@
 import { createFramePresenter } from './frame-output.js'
 import { describeGuestError, runGuest } from './guest.js'
 import { serveAudio } from './audio-output.js'
+import { deferProcessTask } from './runtime-access.js'
 
 let owner
 let closeAudio
@@ -17,47 +18,63 @@ const sendFrame = (frame) => {
 
 const frames = createFramePresenter(sendFrame)
 
+function scheduleHostTask(run) {
+  const process = owner
+
+  try {
+    const pending = deferProcessTask(process, () => {
+      if (owner === process) run()
+    })
+    pending?.catch((error) => self.postMessage(describeGuestError(error)))
+  } catch (error) {
+    self.postMessage(describeGuestError(error))
+  }
+}
+
 self.onmessage = async ({ data }) => {
   if (data.kind === 'frame-ready') {
-    frames.acknowledge()
+    scheduleHostTask(() => frames.acknowledge())
 
     return
   }
 
   if (data.kind === 'audio') {
     closeAudio?.()
-    closeAudio = serveAudio(data.port, () =>
-      owner
-        ? (left, right, rate) => {
-            const block = owner.mixAudio(left.length, rate, performance.now())
-            let failed = true
+    closeAudio = serveAudio(
+      data.port,
+      () =>
+        owner
+          ? (left, right, rate) => {
+              const block = owner.mixAudio(left.length, rate, performance.now())
+              let failed = true
 
-            try {
-              left.set(block.left())
-              right.set(block.right())
-              failed = false
-            } finally {
               try {
-                block.free()
-              } catch (error) {
-                if (!failed) throw error
+                left.set(block.left())
+                right.set(block.right())
+                failed = false
+              } finally {
+                try {
+                  block.free()
+                } catch (error) {
+                  if (!failed) throw error
+                }
               }
             }
-          }
-        : undefined,
+          : undefined,
+      scheduleHostTask,
     )
 
     return
   }
 
   if (data.kind === 'mouse') {
-    owner?.mouseInput(data.x, data.y, data.buttons)
+    scheduleHostTask(() => owner?.mouseInput(data.x, data.y, data.buttons))
 
     return
   }
 
   if (data.kind === 'key') {
-    owner?.keyInput(data.code, data.down, data.repeat)
+    scheduleHostTask(() => owner?.keyInput(data.code, data.down, data.repeat))
 
     return
   }
