@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="The Sims" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <title>The Sims</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="images/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="images/icon-180.png" />
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+  <body>
+    <main>
+      <div class="launch-shell">
+        <section class="launcher" aria-label="The Sims launcher">
+          <h1 class="visually-hidden">The Sims</h1>
+          <button id="maxis" type="button" aria-label="Maxis" aria-haspopup="dialog">
+            <img src="images/launcher-maxis.png" alt="" width="162" height="117" />
+            <span class="icon-hit" aria-hidden="true"></span>
+          </button>
+          <form id="game-form">
+            <button class="menu-item play" type="submit" disabled>
+              <span class="menu-label">Play</span
+              ><img src="images/launcher-play.png" alt="" width="85" height="96" /><span
+                class="icon-hit"
+                aria-hidden="true"
+              ></span>
+            </button>
+            <label class="menu-item folder-picker"
+              ><span class="menu-label">Choose game folder</span
+              ><img src="images/launcher-folder.png" alt="" width="73" height="79" /><span
+                class="icon-hit"
+                aria-hidden="true"
+              ></span
+              ><input
+                name="folder"
+                type="file"
+                webkitdirectory
+                multiple
+                required
+                aria-describedby="folder-help"
+            /></label>
+          </form>
+          <button id="about" class="menu-item about" type="button">
+            <span class="menu-label">More information + legal</span
+            ><img src="images/launcher-info.png" alt="" width="73" height="87" /><span
+              class="icon-hit"
+              aria-hidden="true"
+            ></span>
+          </button>
+          <button
+            id="reset-progress"
+            class="menu-item reset-progress"
+            type="button"
+            aria-haspopup="dialog"
+          >
+            <span class="menu-label">Manage savefiles</span>
+            <img src="images/launcher-reset.png" alt="" width="54" height="54" /><span
+              class="icon-hit"
+              aria-hidden="true"
+            ></span>
+          </button>
+        </section>
+        <p id="folder-help" role="status">Choose your installed game folder, then press Play.</p>
+      </div>
+      <section class="game-panel" aria-label="The Sims game" hidden>
+        <div class="screen">
+          <canvas
+            tabindex="0"
+            width="800"
+            height="600"
+            aria-label="Game display"
+            aria-describedby="frame-status"
+          ></canvas>
+        </div>
+      </section>
+      <p id="play-status" role="status"></p>
+      <button id="performance-toggle" type="button" hidden>Performance</button>
+      <section id="performance-panel" aria-labelledby="performance-title" hidden>
+        <div class="performance-heading">
+          <h2 id="performance-title">Performance</h2>
+          <button id="performance-hide" type="button">Hide</button>
+        </div>
+        <label for="performance-label">Sample label</label>
+        <input id="performance-label" placeholder="e.g. iPad, paused camera drag" />
+        <pre id="performance-values"></pre>
+        <p class="performance-note">
+          Last 15 seconds; collection continues while hidden. *Next frame after input is an estimate
+          of response time. GPU/display latency is not measured.
+        </p>
+        <div class="performance-actions">
+          <button id="performance-reset" type="button">Reset sample</button>
+          <button id="performance-copy" type="button">Copy report</button>
+        </div>
+        <p id="performance-status" role="status"></p>
+        <textarea
+          id="performance-report"
+          aria-label="Performance report"
+          rows="8"
+          readonly
+          hidden
+        ></textarea>
+      </section>
+      <section id="error-details" aria-label="Error report" hidden>
+        <button id="copy-error" type="button">Copy error details</button>
+        <p id="copy-error-status" role="status"></p>
+        <textarea id="error-report" aria-label="Error details" rows="10" readonly hidden></textarea>
+      </section>
+      <p id="update-status" role="status" hidden></p>
+      <p id="offline-status" role="status" hidden></p>
+      <p id="frame-status" class="visually-hidden">
+        Click the game to use your mouse and keyboard. On touch screens, use one finger for left
+        click and hold two fingers for right click.
+      </p>
+      <dialog id="information" aria-labelledby="information-title">
+        <h2 id="information-title">More information + legal</h2>
+        <p>
+          You need to own a copy of The Sims: Complete Collection v1.91 to run this port. This
+          project aims to provide support and interoperability for the original The Sims: Complete
+          Collection, which is abandonware and cannot be redeemed or exchanged for a new copy.
+        </p>
+        <p>
+          Game files are read locally on your device and are not uploaded. The first launch prepares
+          your game in the browser (x86 → WebAssembly transpilation).
+        </p>
+        <p>
+          The Sims: Legacy Collection is not supported. To purchase the current release,
+          <a
+            href="https://store.steampowered.com/app/3314060/The_Sims_Legacy_Collection/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >buy on Steam</a
+          >
+          from EA.
+        </p>
+        <p>
+          This is a progressive web app. On supported devices, you can install it and open it from
+          your home screen.
+        </p>
+        <p>
+          Source code:
+          <a
+            href="https://github.com/NickStarlight/the-sims-wasm"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub</a
+          >.
+        </p>
+        <hr />
+        <p>
+          The Sims, Maxis, EA, and the original artwork and audio belong to Electronic Arts and
+          their respective owners. This project is not affiliated with or endorsed by Electronic
+          Arts. You must legally own the game to use this project.
+        </p>
+        <form method="dialog"><button>Back</button></form>
+      </dialog>
+
+      <dialog id="progress-dialog" aria-labelledby="progress-title">
+        <h2 id="progress-title">Manage savefiles</h2>
+        <p>Back up or restore all saved households, neighborhoods, and preferences.</p>
+        <p>You still need your original game files to play after importing a backup.</p>
+        <div class="progress-actions">
+          <button id="export-progress" type="button">Export backup</button>
+          <button id="import-progress" type="button">Import backup</button>
+          <button id="show-reset-progress" class="danger" type="button">Reset progress</button>
+        </div>
+        <input id="progress-file" type="file" accept=".sims-save" hidden />
+        <p id="progress-status" role="status"></p>
+        <form method="dialog"><button autofocus>Back</button></form>
+      </dialog>
+
+      <dialog id="import-progress-dialog" aria-labelledby="import-title">
+        <h2 id="import-title">Replace saved progress?</h2>
+        <p id="import-summary"></p>
+        <p>
+          Importing replaces all saved households, neighborhoods, and preferences in this browser.
+          Export a backup first if you want to keep your current progress.
+        </p>
+        <p id="import-status" role="alert"></p>
+        <div class="dialog-actions">
+          <button id="cancel-import" type="button" autofocus>Cancel</button>
+          <button id="confirm-import" class="danger" type="button">Replace progress</button>
+        </div>
+      </dialog>
+
+      <dialog
+        id="reset-progress-dialog"
+        aria-labelledby="reset-title"
+        aria-describedby="reset-description"
+      >
+        <h2 id="reset-title">Reset all saved progress?</h2>
+        <p id="reset-description">
+          This permanently deletes all saved households, neighborhoods, and preferences for this
+          site in this browser. This cannot be undone.
+        </p>
+        <p>Your original game folder stays unchanged. The next game starts from that folder.</p>
+        <p id="reset-status" role="alert"></p>
+        <div class="dialog-actions">
+          <button id="cancel-reset" type="button" autofocus>Cancel</button>
+          <button id="confirm-reset" class="danger" type="button">Delete saved progress</button>
+        </div>
+      </dialog>
+
+      <dialog id="maxis-easter-egg" aria-label="Will Wright on a scooter">
+        <!-- Original Setup.exe bitmap resources: illustration 241, Maxis logo 378–380. -->
+        <img
+          src="images/launcher-easter-egg.png"
+          alt="Will Wright riding a red scooter, with a tiny Sim on the handlebars."
+          width="400"
+          height="488"
+        />
+        <form method="dialog"><button autofocus>Back</button></form>
+      </dialog>
+    </main>
+    <audio id="launcher-music" src="audio/launcher-music.wav" preload="none"></audio>
+    <script type="module" src="app/main.js"></script>
+    <script type="module" src="app/pwa.js"></script>
+  </body>
+</html>

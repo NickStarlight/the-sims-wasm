@@ -1,0 +1,237 @@
+import { validateClientId } from './identity.js'
+import { hashBytes as digest } from '../shared/hash.js'
+import { openCompiledCache } from '../storage/compiled-cache.js'
+
+const commandLine = 'C:\\Sims\\Sims.exe -skip_intro'
+
+function pathKey(path) {
+  return path.replaceAll('\\', '/').toLowerCase()
+}
+
+async function compilerBuild() {
+  const response = await fetch(new URL('../compiler-build.json', import.meta.url))
+
+  if (!response.ok) throw new Error('The compiler could not be loaded. Reload and try again.')
+
+  const build = await response.json()
+  const profile = build.profile
+
+  if (
+    build.version !== 1 ||
+    !profile ||
+    !Array.isArray(profile.modules) ||
+    !Array.isArray(profile.requiredFiles)
+  )
+    throw new Error('Unsupported compiler configuration. Reload the page.')
+
+  validateClientId(build.compilerId)
+  validateClientId(build.wasmSha256)
+  validateClientId(profile.sha256)
+
+  return build
+}
+
+function programFrom(compiled, files) {
+  return {
+    files,
+    wasm: compiled.wasm,
+    metadata: compiled.metadata,
+    plan: compiled.plan,
+    imageBytes: compiled.imageBytes,
+    clientId: compiled.clientId,
+    commandLine: compiled.commandLine,
+    initialRegistry: compiled.initialRegistry,
+  }
+}
+
+async function compileGame(build, binaries) {
+  const { bindings, profile } = await loadCompiler(build)
+
+  let compiler
+  let artifact
+  let failed = false
+  let failure
+
+  try {
+    compiler = new bindings.Compiler(binaries[0].bytes)
+
+    for (let index = 0; index < profile.modules.length; index++)
+      compiler.addModule(binaries[index + 1].bytes, profile.modules[index].base)
+
+    artifact = compiler.compile(Uint32Array.from(profile.roots))
+    const plan = JSON.parse(compiler.loadPlanJson())
+
+    plan.images.forEach((image, index) => {
+      image.path = `C:\\Sims\\${binaries[index].path}`
+    })
+
+    return {
+      version: 1,
+      wasm: artifact.takeWasm(),
+      metadata: JSON.parse(artifact.runtimeMetadataJson()),
+      plan,
+      imageBytes: compiler.loadBytes(),
+      clientId: profile.sha256,
+      commandLine,
+      initialRegistry: profile.initialRegistry,
+    }
+  } catch (error) {
+    failed = true
+    failure = error
+  } finally {
+    // A Wasm trap can strand a Rust borrow. Preserve that first error if
+    // freeing its owner fails, and still release the other owner.
+    for (const owner of [artifact, compiler]) {
+      try {
+        owner?.free()
+      } catch (error) {
+        if (!failed) failure = error
+
+        failed = true
+      }
+    }
+
+    if (failed) throw failure
+  }
+}
+
+export async function loadGame(files, onPhase = () => {}, onProgress = () => {}) {
+  const selected = new Map(files.map((entry) => [pathKey(entry.path), entry.file]))
+
+  for (const path of ['GameData/Objects/Objects.far', 'UserData/Neighborhood.iff', 'Sims.exe']) {
+    if (!selected.has(pathKey(path)))
+      throw new Error(`Choose your Complete Collection installation, including ${path}.`)
+  }
+
+  if (!globalThis.crypto?.subtle)
+    throw new Error('Open this site over HTTPS or localhost to prepare your game locally.')
+
+  const mark = (name) => onPhase({ name, atMs: performance.timeOrigin + performance.now() })
+  mark('local-files-check-start')
+  onProgress('Checking your game files…')
+  const build = await compilerBuild()
+
+  for (const path of build.profile.requiredFiles) {
+    if (!selected.has(pathKey(path)))
+      throw new Error(`Complete Collection requires ${path}. Choose its complete installation.`)
+  }
+
+  const names = ['Sims.exe', ...build.profile.modules.map(({ name }) => name)]
+
+  for (const name of names) {
+    if (!selected.has(pathKey(name)))
+      throw new Error(`Your Complete Collection installation is missing ${name}.`)
+  }
+
+  const binaries = await Promise.all(
+    names.map(async (path) => {
+      const bytes = new Uint8Array(await selected.get(pathKey(path)).arrayBuffer())
+
+      return { path, bytes, sha256: await digest(bytes) }
+    }),
+  )
+
+  if (binaries[0].sha256 !== build.profile.sha256)
+    throw new Error('This Sims.exe is not the supported Complete Collection v1.91 executable.')
+
+  const key = JSON.stringify({
+    version: 1,
+    compilerId: build.compilerId,
+    inputs: binaries.map(({ path, sha256 }) => ({ path, sha256 })),
+    commandLine,
+  })
+  const cache = await openCompiledCache()
+
+  try {
+    const prepare = async () => {
+      const cached = await cache.get(key)
+
+      if (cached && cached.clientId === binaries[0].sha256 && cached.commandLine === commandLine) {
+        try {
+          onProgress('Loading your cached game…')
+
+          if (!WebAssembly.validate(cached.wasm))
+            throw new WebAssembly.CompileError('The cached game module is invalid.')
+
+          mark('local-compile-cache-hit')
+          mark('client-ready')
+
+          return programFrom(cached, files)
+        } catch {
+          await cache.delete(key)
+        }
+      }
+
+      mark('local-compile-cache-miss')
+      onProgress('Preparing your game locally. The first launch takes longer…')
+      mark('local-compile-start')
+      const compiled = await compileGame(build, binaries)
+      mark('local-compile-done')
+      onProgress('Starting your game…')
+
+      if (!WebAssembly.validate(compiled.wasm))
+        throw new WebAssembly.CompileError('The prepared game module is invalid.')
+
+      await cache.put(key, compiled)
+      mark('client-ready')
+
+      // The compiler's Wasm heap stays allocated until this worker terminates.
+      // Transfer the bytes first; only the runtime worker should JIT the game.
+      return programFrom(compiled, files)
+    }
+
+    return typeof navigator !== 'undefined' && navigator.locks?.request
+      ? await navigator.locks.request('sims-web:compilation', prepare)
+      : await prepare()
+  } finally {
+    cache.close()
+  }
+}
+
+async function loadCompiler(build) {
+  const [javascript, wasm] = await Promise.all(
+    ['compiler.js', 'compiler_bg.wasm'].map(async (name) => {
+      const response = await fetch(new URL(`../${name}`, import.meta.url), { cache: 'reload' })
+
+      if (!response.ok) throw new Error('The compiler could not be loaded. Reload and try again.')
+
+      return new Uint8Array(await response.arrayBuffer())
+    }),
+  )
+  const compilerBytes = new Uint8Array(javascript.length + wasm.length)
+  compilerBytes.set(javascript)
+  compilerBytes.set(wasm, javascript.length)
+
+  if (
+    (await digest(wasm)) !== build.wasmSha256 ||
+    (await digest(compilerBytes)) !== build.compilerId
+  )
+    throw new Error('Compiler files do not match. Close all game tabs and reopen the page.')
+
+  // Import the verified bytes, rather than making a second URL request that
+  // could race a deployment or reuse a different HTTP/module-cache response.
+  const moduleUrl = URL.createObjectURL(new Blob([javascript], { type: 'text/javascript' }))
+  let bindings
+
+  try {
+    bindings = await import(moduleUrl)
+  } finally {
+    URL.revokeObjectURL(moduleUrl)
+  }
+
+  await bindings.default({ module_or_path: wasm })
+  const profile = JSON.parse(bindings.completeProfileJson())
+
+  if (
+    profile.sha256 !== build.profile.sha256 ||
+    profile.modules.length !== build.profile.modules.length ||
+    profile.modules.some(
+      ({ name, base }, index) =>
+        name !== build.profile.modules[index].name || base !== build.profile.modules[index].base,
+    ) ||
+    JSON.stringify(profile.requiredFiles) !== JSON.stringify(build.profile.requiredFiles)
+  )
+    throw new Error('Compiler files do not match. Close all game tabs and reopen the page.')
+
+  return { bindings, profile }
+}
