@@ -1,0 +1,13 @@
+[workspace]
+members = ["crates/compiler", "crates/runtime", "crates/tools"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.88"
+
+[workspace.lints.clippy]
+all = "warn"
+
+[profile.release]
+lto = "thin"

@@ -1,0 +1,547 @@
+:root {
+  color-scheme: dark;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #dcebf4;
+  background: #000;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background: #000;
+}
+
+main {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.launcher {
+  position: relative;
+  width: min(100%, 640px);
+  aspect-ratio: 4 / 3;
+  margin: auto;
+  background: url("../images/launcher-background.png") center / 100% 100%;
+  container-type: inline-size;
+}
+
+/* WS_DLGFRAME in the captured original: three pixels outside the 640 × 480 client. */
+.launcher::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  border: 1px solid;
+  border-color: #e3e3e3 #6a6a6a #6a6a6a #e3e3e3;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 #a6a6a6,
+    inset 2px 2px 0 #f5f5f5,
+    inset -2px -2px 0 #f5f5f5;
+}
+
+/* Setup.exe 4dde314f…: CreateWindowExA at 0x407b6e uses these rectangles
+   directly. The source bitmaps use their own masks; never crop or scale an
+   individual icon into a different slot. */
+.menu-item,
+#maxis {
+  position: absolute;
+  left: calc(var(--sprite-x) * 100cqw / 640);
+  top: calc(var(--sprite-y) * 100cqw / 640);
+  width: calc(var(--sprite-width) * 100cqw / 640);
+  height: calc(var(--sprite-height) * 100cqw / 640);
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  pointer-events: none;
+  color: #00008c;
+  font-family: "Comic Sans MS", Arial, sans-serif;
+  font-size: calc(16 * 100cqw / 640);
+  font-weight: 400;
+  text-shadow: none;
+  white-space: nowrap;
+}
+
+.menu-item > img,
+#maxis > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 0x406670 measures each string and draws it at a fixed lower-right anchor. */
+.menu-label {
+  position: absolute;
+  right: calc((var(--sprite-x) + var(--sprite-width) - var(--label-x)) * 100cqw / 640);
+  bottom: calc((var(--sprite-y) + var(--sprite-height) - var(--label-y)) * 100cqw / 640);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* 0x407e30: exact circular mouse hit regions, independent of bitmap padding. */
+.icon-hit {
+  position: absolute;
+  left: calc((var(--hit-x) - var(--hit-radius)) * 100cqw / 640);
+  top: calc((var(--hit-y) - var(--hit-radius)) * 100cqw / 640);
+  width: calc(2 * var(--hit-radius) * 100cqw / 640);
+  height: calc(2 * var(--hit-radius) * 100cqw / 640);
+  border-radius: 50%;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Mouse hover focuses the native button (0x407580); owner draw selects state 2.
+   Labels retain their color. State 1 is the original pressed bitmap. */
+.menu-item:not(:disabled):has(.icon-hit:hover) > img,
+.menu-item:focus-visible > img,
+.folder-picker:has(input:focus-visible) > img,
+#maxis:has(.icon-hit:hover) > img,
+#maxis:focus-visible > img {
+  content: var(--sprite-hover);
+}
+
+.menu-item:not(:disabled):has(.icon-hit:active) > img,
+#maxis:has(.icon-hit:active) > img {
+  content: var(--sprite-active);
+}
+
+.menu-item:disabled > img {
+  content: var(--sprite-disabled, normal);
+}
+
+.menu-item:disabled > .icon-hit,
+.menu-item:disabled > .menu-label {
+  pointer-events: none;
+  cursor: default;
+}
+
+.play {
+  --sprite-x: 186;
+  --sprite-y: 162;
+  --sprite-width: 85;
+  --sprite-height: 96;
+  --hit-x: 40;
+  --hit-y: 50;
+  --hit-radius: 35;
+  --label-x: 187;
+  --label-y: 237;
+  --sprite-hover: url("../images/launcher-play-hover.png");
+  --sprite-active: url("../images/launcher-play-active.png");
+}
+
+.folder-picker {
+  --sprite-x: 330;
+  --sprite-y: 268;
+  --sprite-width: 73;
+  --sprite-height: 79;
+  --hit-x: 33;
+  --hit-y: 42;
+  --hit-radius: 29;
+  --label-x: 329;
+  --label-y: 332;
+  --sprite-hover: url("../images/launcher-folder-hover.png");
+  --sprite-active: url("../images/launcher-folder-active.png");
+  --sprite-disabled: url("../images/launcher-folder-disabled.png");
+}
+
+.about {
+  --sprite-x: 372;
+  --sprite-y: 323;
+  --sprite-width: 73;
+  --sprite-height: 87;
+  --hit-x: 37;
+  --hit-y: 48;
+  --hit-radius: 26;
+  --label-x: 370;
+  --label-y: 391;
+  --sprite-hover: url("../images/launcher-info-hover.png");
+  --sprite-active: url("../images/launcher-info-active.png");
+  --sprite-disabled: url("../images/launcher-info-disabled.png");
+}
+
+.reset-progress {
+  --sprite-x: 405;
+  --sprite-y: 411;
+  --sprite-width: 54;
+  --sprite-height: 54;
+  --hit-x: 26;
+  --hit-y: 25;
+  --hit-radius: 23;
+  --label-x: 398;
+  --label-y: 443;
+  --sprite-hover: url("../images/launcher-reset-hover.png");
+  --sprite-active: url("../images/launcher-reset-active.png");
+}
+
+#maxis {
+  --sprite-x: 9;
+  --sprite-y: 346;
+  --sprite-width: 162;
+  --sprite-height: 117;
+  --hit-x: 74;
+  --hit-y: 54;
+  --hit-radius: 60;
+  --sprite-hover: url("../images/launcher-maxis-hover.png");
+  --sprite-active: url("../images/launcher-maxis-active.png");
+}
+
+.folder-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid #9ce9ff;
+  outline-offset: 4px;
+}
+
+.menu-item:focus,
+.folder-picker input:focus,
+#maxis:focus {
+  outline: none;
+}
+
+.menu-item:focus-visible > .icon-hit,
+.folder-picker:has(input:focus-visible) > .icon-hit,
+#maxis:focus-visible > .icon-hit {
+  outline: 2px solid #9ce9ff;
+  outline-offset: 2px;
+}
+
+#folder-help,
+#play-status,
+#update-status {
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+#play-status:empty {
+  display: none;
+}
+
+.game-panel {
+  border: 2px solid #91b8ce;
+  background: #000;
+  box-shadow: 0 16px 60px #0006;
+}
+
+button {
+  cursor: pointer;
+}
+
+dialog button,
+#copy-error {
+  padding: 8px 18px;
+  color: white;
+  background: linear-gradient(#365ca2, #080c58);
+  border: 1px solid #98c1e7;
+  border-radius: 20px;
+  font: inherit;
+}
+
+.screen {
+  position: relative;
+  background: #000;
+}
+
+canvas {
+  -webkit-touch-callout: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+dialog {
+  width: min(90%, 460px);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+  color: #e7f5ff;
+  background: #153757;
+  border: 2px ridge #a2c9e8;
+  box-shadow: 0 12px 50px #0009;
+}
+
+dialog::backdrop {
+  background: #020c29aa;
+}
+
+dialog h2 {
+  font-size: 23px;
+  margin-top: 0;
+}
+
+dialog p {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+dialog a {
+  color: #9ce9ff;
+}
+
+dialog form {
+  text-align: right;
+}
+
+#maxis-easter-egg {
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  padding: 12px;
+}
+
+#maxis-easter-egg > img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 120px);
+  max-height: calc(100dvh - 120px);
+  margin: auto;
+  object-fit: contain;
+}
+
+#maxis-easter-egg form {
+  margin-top: 12px;
+}
+
+.compiling {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.compiling::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border: 2px solid #657b9c;
+  border-top-color: #d9e6ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compiling::before {
+    animation: none;
+  }
+}
+
+/* Center the artwork itself, with helper text below it. */
+.launch-shell {
+  z-index: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(calc(100% - 32px), 640px, calc((100vh - 96px) * 4 / 3));
+  width: min(calc(100% - 32px), 640px, calc((100dvh - 96px) * 4 / 3));
+}
+
+.launcher {
+  width: 100%;
+}
+
+#folder-help {
+  position: absolute;
+  top: 100%;
+  width: 100%;
+  margin: 12px 0 0;
+}
+
+.game-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(100vw, calc(100vh * 4 / 3));
+  width: min(100vw, calc(100dvh * 4 / 3));
+  z-index: 1;
+  margin: 0;
+  border: 0;
+}
+
+#play-status {
+  position: fixed;
+  bottom: 12px;
+  left: 16px;
+  right: 16px;
+  padding: 8px;
+  background: #000e;
+  z-index: 2;
+}
+
+#error-details {
+  position: fixed;
+  top: max(64px, env(safe-area-inset-top));
+  left: 16px;
+  right: 16px;
+  max-width: 640px;
+  max-height: 65dvh;
+  margin: auto;
+  padding: 16px;
+  overflow: auto;
+  text-align: center;
+  background: #000e;
+  z-index: 4;
+}
+
+#copy-error-status:empty {
+  display: none;
+}
+
+#error-report {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  text-align: left;
+  user-select: text;
+}
+
+#performance-panel {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 5;
+  width: min(370px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 16px;
+  color: #dcebf4;
+  background: #081220f2;
+  border: 1px solid #668796;
+  border-radius: 8px;
+}
+
+.performance-heading,
+.performance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.performance-heading h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+#performance-panel input,
+#performance-report {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  user-select: text;
+}
+
+#performance-values {
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.performance-note,
+#performance-status {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#performance-toggle {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  top: max(12px, env(safe-area-inset-top));
+  z-index: 5;
+}
+
+#update-status {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+  padding: 8px;
+  background: #000e;
+  z-index: 3;
+}
+
+.game-panel:not([hidden]) ~ #update-status {
+  display: none;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.progress-actions {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+dialog .danger {
+  background: linear-gradient(#873b47, #531e2b);
+  border-color: #dba1a9;
+}
+
+dialog button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+#reset-status:empty,
+#progress-status:empty,
+#import-status:empty {
+  display: none;
+}
