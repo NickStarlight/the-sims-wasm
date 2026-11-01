@@ -6,6 +6,7 @@ export async function storageSmoke(Process, directory) {
     otherClientId = 'b'.repeat(64)
   const entries = new Map()
   let storageOpens = 0
+  let failCompaction = false
   const original = Object.getOwnPropertyDescriptor(navigator, 'storage')
   const root = {
     async getDirectoryHandle() {
@@ -15,6 +16,17 @@ export async function storageSmoke(Process, directory) {
       let entry = entries.get(name)
       if (!entry) entries.set(name, (entry = { bytes: new Uint8Array(), flushed: 0, closed: 0 }))
       return {
+        async createWritable() {
+          let pending
+          return {
+            async write(bytes) { pending = bytes.slice() },
+            async close() {
+              if (failCompaction) throw new Error('compaction commit failed')
+              entry.bytes = pending
+            },
+            async abort() {},
+          }
+        },
         async createSyncAccessHandle() {
           return {
             getSize: () => entry.bytes.length,
@@ -117,6 +129,28 @@ export async function storageSmoke(Process, directory) {
       "different bundled identities cannot inherit each other's file saves",
     )
     assert.equal(entries.size, 2)
+    await storage.close()
+    storage = undefined
+    const compactClient = 'c'.repeat(64)
+    const name = `${compactClient}-${neighborhoodHash}.journal`
+    const originalBytes = new Uint8Array(16 * 1024 * 1024).fill(42)
+    entries.set(name, { bytes: originalBytes, flushed: 0, closed: 0 })
+    const compactProcess = {
+      restoreJournal: bytes => bytes.length,
+      compactJournal: bytes => {
+        assert.equal(bytes.length, originalBytes.length)
+        return Uint8Array.of(1, 2, 3)
+      },
+      takeFileChanges: () => new Uint8Array(),
+    }
+    failCompaction = true
+    await assert.rejects(openSaveStorage(files, compactProcess, compactClient), /compaction commit failed/)
+    assert.equal(entries.get(name).bytes, originalBytes, 'failed commit preserves old journal')
+    failCompaction = false
+    storage = await openSaveStorage(files, compactProcess, compactClient)
+    assert.deepEqual([...entries.get(name).bytes], [1, 2, 3])
+    await assert.rejects(openSaveStorage(files, compactProcess, compactClient), /Close other running/)
+
   } finally {
     await storage?.close()
     process?.free()

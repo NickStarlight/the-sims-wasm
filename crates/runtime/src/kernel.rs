@@ -171,6 +171,10 @@ impl Kernel {
         self.files.restore_journal(bytes)
     }
 
+    pub fn compact_journal(&self, bytes: &[u8]) -> Result<Vec<u8>> {
+        self.files.compact_journal(bytes)
+    }
+
     pub fn take_file_changes(&mut self) -> Vec<u8> {
         self.files.take_file_changes()
     }

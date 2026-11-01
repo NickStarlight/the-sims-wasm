@@ -20,9 +20,7 @@ impl Op {
     pub const CALL_INDIRECT: u8 = 0x11;
     pub const SELECT: u8 = 0x1b;
     pub const LOCAL_GET: u8 = 0x20;
-    pub const LOCAL_SET: u8 = 0x21;
     pub const LOCAL_TEE: u8 = 0x22;
-    pub const GLOBAL_GET: u8 = 0x23;
     pub const GLOBAL_SET: u8 = 0x24;
     pub const I32_LOAD: u8 = 0x28;
     pub const I64_LOAD: u8 = 0x29;
@@ -39,7 +37,6 @@ impl Op {
     pub const I32_STORE8: u8 = 0x3a;
     pub const I32_STORE16: u8 = 0x3b;
     pub const I32_CONST: u8 = 0x41;
-    pub const I64_CONST: u8 = 0x42;
     pub const F64_CONST: u8 = 0x44;
     pub const I32_EQZ: u8 = 0x45;
     pub const I32_EQ: u8 = 0x46;

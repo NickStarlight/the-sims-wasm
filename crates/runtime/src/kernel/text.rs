@@ -29,6 +29,51 @@ pub(super) fn encode_unit(unit: u16) -> Option<u8> {
     }
 }
 
+/// Bulk-read bounded text, falling back to one code unit at mapping boundaries.
+/// A terminated result includes its NUL. Never demand readable bytes beyond it.
+fn read_units<M: GuestMemory>(
+    process: &Process<M>,
+    address: u32,
+    count: u32,
+    wide: bool,
+    terminated: bool,
+) -> Result<Vec<u16>> {
+    if count > 1_048_576 {
+        return Err(Error::InvalidRange);
+    }
+    let width = if wide { 2 } else { 1 };
+    let mut units = Vec::new();
+    while units.len() < count as usize {
+        let current = address
+            .checked_add((units.len() * width) as u32)
+            .ok_or(Error::InvalidRange)?;
+        let mut block = [0; 256];
+        let requested = block.len().min((count as usize - units.len()) * width);
+        let length = if process.read(current, &mut block[..requested]).is_ok() {
+            requested
+        } else {
+            process.read(current, &mut block[..width])?;
+            width
+        };
+        for bytes in block[..length].chunks_exact(width) {
+            let unit = if wide {
+                u16::from_le_bytes([bytes[0], bytes[1]])
+            } else {
+                bytes[0] as u16
+            };
+            units.push(unit);
+            if terminated && unit == 0 {
+                return Ok(units);
+            }
+        }
+    }
+    if terminated {
+        Err(Error::Host("unterminated conversion input".into()))
+    } else {
+        Ok(units)
+    }
+}
+
 pub(super) fn convert<M: GuestMemory>(
     process: &mut Process<M>,
     args: &[u32],
@@ -53,23 +98,13 @@ pub(super) fn convert<M: GuestMemory>(
     if !terminated && (args[3] == 0 || args[3] > 1_048_576) {
         return Err(Error::InvalidRange);
     }
-    let width = if wide { 2 } else { 1 };
-    let mut units = Vec::new();
-    for index in 0..if terminated { 1_048_576 } else { args[3] } {
-        let address = args[2]
-            .checked_add(index * width)
-            .ok_or(Error::InvalidRange)?;
-        let mut bytes = [0; 2];
-        process.read(address, &mut bytes[..width as usize])?;
-        let unit = u16::from_le_bytes(bytes);
-        units.push(unit);
-        if terminated && unit == 0 {
-            break;
-        }
-    }
-    if terminated && units.last() != Some(&0) {
-        return Err(Error::Host("unterminated conversion input".into()));
-    }
+    let units = read_units(
+        process,
+        args[2],
+        if terminated { 1_048_576 } else { args[3] },
+        wide,
+        terminated,
+    )?;
     let default = if wide && args[6] != 0 {
         let mut byte = [0];
         process.read(args[6], &mut byte)?;
@@ -100,3 +135,7 @@ pub(super) fn convert<M: GuestMemory>(
     }
     Ok(required)
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/kernel/text/bulk.rs"]
+mod bulk_tests;

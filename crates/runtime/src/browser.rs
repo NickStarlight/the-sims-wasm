@@ -570,6 +570,11 @@ impl BrowserProcess {
         self.kernel.restore_journal(bytes).map_err(js)
     }
 
+    #[wasm_bindgen(js_name = compactJournal)]
+    pub fn compact_journal(&self, bytes: &[u8]) -> std::result::Result<Vec<u8>, JsError> {
+        self.kernel.compact_journal(bytes).map_err(js)
+    }
+
     #[wasm_bindgen(js_name = takeFileChanges)]
     pub fn take_file_changes(&mut self) -> Vec<u8> {
         self.kernel.take_file_changes()

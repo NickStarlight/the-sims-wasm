@@ -49,9 +49,9 @@ export function registryEntries(prefix) {
 }
 
 // A running game holds a shared lease; progress management requires exclusive access.
-export function acquireSaveLock(mode) {
+export function acquireSaveLock(mode, name = saveLock) {
   return new Promise((resolve, reject) => {
-    const request = navigator.locks.request(saveLock, { mode, ifAvailable: true }, (lock) => {
+    const request = navigator.locks.request(name, { mode, ifAvailable: true }, (lock) => {
       if (!lock)
         throw new Error(
           'Close other running game tabs before managing progress or starting a game.',

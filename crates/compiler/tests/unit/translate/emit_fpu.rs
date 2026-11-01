@@ -139,3 +139,40 @@ for(const [word,input,expected] of [[0x027f,3.5,4],[0x067f,3.5,3],[0x0a7f,-3.5,-
 "#,
     );
 }
+
+#[test]
+fn extended_memory_roundtrips_and_binary64_limits_are_explicit() {
+    crate::translate::test_support::execute_v8(
+        &[("roundtrip", vec![0xdb, 0x28, 0xdb, 0x39])], // FLD m80 [EAX]; FSTP m80 [ECX]
+        r#"
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const env={memory:new WebAssembly.Memory({initial:1})};
+for(const name of ['eax','ecx','edx','ebx','esp','ebp','esi','edi','flags','fp_top','fp_status','trap_va','call_target','resume_next','actual_return','teb_base'])
+ env[name]=new WebAssembly.Global({value:'i32',mutable:true},0);
+const {exports}=new WebAssembly.Instance(new WebAssembly.Module(readFileSync(0)),{env});
+const view=new DataView(env.memory.buffer), high=1n<<63n;
+env.eax.value=0x1000;env.ecx.value=0x1100;env.teb_base.value=0x2000;
+const cases=[
+ [high,16383,high,16383], // 1
+ [high,0x8000|16382,high,0x8000|16382], // -0.5
+ [high,16383-1074,high,16383-1074], // smallest binary64 subnormal
+ [0xfffffffffffff800n,16383+1023,0xfffffffffffff800n,16383+1023],
+ // Known approximation: native x87 preserves the low significand bits and
+ // wider exponent range on FLD/FSTP. The binary64 bank currently cannot.
+ [high+1n,16383,high,16383], // 1 + 2^-63 rounds to 1
+ [high,16383+1024,high,0x7fff], // binary64 overflow
+ [high,16383-1075,0n,0], // ties-to-even underflow
+ [high,0x8000|(16383-1075),0n,0x8000], // negative zero
+];
+for(const [sig,exp,expectedSig,expectedExp] of cases){
+ env.fp_top.value=0;env.fp_status.value=0;
+ view.setBigUint64(0x1000,sig,true);view.setUint16(0x1008,exp,true);
+ exports.roundtrip();
+ assert.equal(view.getBigUint64(0x1100,true),expectedSig);
+ assert.equal(view.getUint16(0x1108,true),expectedExp);
+ assert.equal(env.fp_top.value,0);
+}
+"#,
+    );
+}

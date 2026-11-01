@@ -1,0 +1,170 @@
+{
+  "version": 2,
+  "label": "final-repeat",
+  "date": "2026-11-01T22:47:23.542Z",
+  "page": "http://127.0.0.1:8091/",
+  "environment": {
+    "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+    "platform": "Linux x86_64",
+    "hardwareConcurrency": 16,
+    "deviceMemoryGiB": 32,
+    "touchPoints": 0,
+    "screen": {
+      "width": 1280,
+      "height": 960,
+      "pixelRatio": 1
+    },
+    "viewport": {
+      "width": 1280,
+      "height": 960
+    },
+    "visibility": "visible",
+    "renderer": {
+      "kind": "webgl2",
+      "vendor": "Google Inc. (AMD)",
+      "renderer": "ANGLE (AMD, AMD Radeon RX 7900 XTX (radeonsi navi31 LLVM 21.1.8), OpenGL ES 3.2)",
+      "width": 800,
+      "height": 600
+    }
+  },
+  "clientId": "6e598c22512a24659cbd0e533306abf3129733d67b1d120916b1b6b1581e29f2",
+  "measurement": {
+    "windowSeconds": 15,
+    "framesSubmitted": 540,
+    "gameFramesPerSecond": 36,
+    "frameIntervalMs": {
+      "samples": 540,
+      "mean": 27.84,
+      "p50": 24.2,
+      "p95": 63.4,
+      "max": 189.4
+    },
+    "canvasSubmitMs": {
+      "samples": 540,
+      "mean": 0.04,
+      "p50": 0,
+      "p95": 0.1,
+      "max": 0.2
+    },
+    "pageWaitToSubmitMs": {
+      "samples": 529,
+      "mean": 2.36,
+      "p50": 0.2,
+      "p95": 7.7,
+      "max": 10.6
+    },
+    "workerFrameIntervalMs": {
+      "samples": 540,
+      "mean": 27.82,
+      "p50": 23.1,
+      "p95": 63.3,
+      "max": 189.4
+    },
+    "frameCreditWaitMs": {
+      "samples": 540,
+      "mean": 3.43,
+      "p50": 2.1,
+      "p95": 8.5,
+      "max": 12
+    },
+    "workerAfterCreditMs": {
+      "samples": 540,
+      "mean": 24.39,
+      "p50": 18.4,
+      "p95": 62.2,
+      "max": 187.3
+    },
+    "deliverySource": {
+      "guest": 472,
+      "acknowledgement": 68
+    },
+    "clockSamplesRejected": {
+      "workerToPage": 0,
+      "inputDelivery": 1,
+      "inputToNextFrame": 0
+    },
+    "workerToPageMs": {
+      "samples": 540,
+      "mean": 0.05,
+      "p50": 0,
+      "p95": 0.1,
+      "max": 7.7
+    },
+    "inputDeliveryMs": {
+      "samples": 151,
+      "mean": 1.14,
+      "p50": 1.2,
+      "p95": 2,
+      "max": 2.3
+    },
+    "inputToNextFrameEstimateMs": {
+      "samples": 152,
+      "mean": 13.98,
+      "p50": 10,
+      "p95": 25.1,
+      "max": 50.5
+    },
+    "runtime": {
+      "sampledSeconds": 14.97,
+      "mainGuestCallsPerSecond": 305953.12,
+      "mainGuestYields": 7263,
+      "mainGuestSuspendedMs": 286.4,
+      "mainGuestPacedMs": 184.4,
+      "sourceReadMs": 37.8,
+      "sourceBytes": 8025716,
+      "activeThreads": 2,
+      "pendingWaits": 1,
+      "guestMemoryBytes": 520159232,
+      "lastCall": "user32.dll!OffsetRect"
+    }
+  },
+  "phases": [
+    {
+      "name": "local-files-check-start",
+      "atMs": 1793573183429.4001
+    },
+    {
+      "name": "local-compile-cache-miss",
+      "atMs": 1793573183530.5
+    },
+    {
+      "name": "local-compile-start",
+      "atMs": 1793573183530.5
+    },
+    {
+      "name": "local-compile-done",
+      "atMs": 1793573186926.3
+    },
+    {
+      "name": "client-ready",
+      "atMs": 1793573187248.8
+    },
+    {
+      "name": "execution-module-ready",
+      "atMs": 1793573187541
+    },
+    {
+      "name": "assets-registered",
+      "atMs": 1793573187578.4
+    },
+    {
+      "name": "saves-restored",
+      "atMs": 1793573187581.8
+    },
+    {
+      "name": "guest-entry",
+      "atMs": 1793573187607.4
+    }
+  ],
+  "notes": [
+    "Trailing 15 seconds since opening or resetting. Game FPS counts canvas submissions, not simulation ticks or display refreshes.",
+    "Canvas submission time excludes GPU completion and physical display latency.",
+    "Input samples use the latest applied input per frame. The next frame may not visibly reflect that input.",
+    "Runtime counters describe the main guest thread; suspended time is not total CPU usage.",
+    "Frame credit wait is the worker-measured time until the page acknowledges its last frame. Worker after-credit time is the subsequent wait for another transferable frame.",
+    "Cross-context clocks may be rounded differently. Negative delay samples are omitted and counted in clockSamplesRejected."
+  ],
+  "playToNeighborhoodMs": 41383,
+  "lotLoadMs": 2622,
+  "errors": []
+}

@@ -144,7 +144,15 @@ fn blend(p: &Options, mut src: [f64; 4], dst: u32) -> [f64; 4] {
         src[i] = src[i] * blend_factor(sf, src[i], dst[i], sa, da)
             + dst[i] * blend_factor(df, src[i], dst[i], sa, da);
     }
-    src[3] = sa + da * (1.0 - sa / 255.0);
+    // SRCALPHASAT uses (f, f, f, 1); other factors apply to alpha too.
+    let alpha_factor = |factor| {
+        if factor == 11 {
+            1.0
+        } else {
+            blend_factor(factor, sa, da, sa, da)
+        }
+    };
+    src[3] = sa * alpha_factor(sf) + da * alpha_factor(df);
     src
 }
 pub(super) fn triangle(s: &mut Target, p: &Options, vertices: [[f64; 7]; 3]) -> u32 {
@@ -267,3 +275,7 @@ fn blend_factor(function: u32, src: f64, dst: f64, sa: f64, da: f64) -> f64 {
         _ => 1.0,
     }
 }
+
+#[cfg(test)]
+#[path = "../../../tests/unit/graphics/d3d/raster.rs"]
+mod tests;

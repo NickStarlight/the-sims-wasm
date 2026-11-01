@@ -1,0 +1,11 @@
+{
+  "decision": "Discarded production changes; retained throughput benchmark",
+  "incrementalEdgesMs": {"reference":186.261315,"candidate":197.672644},
+  "reciprocalAreaMs": [
+    {"reference":190.042088,"candidate":186.905347},
+    {"reference":181.138087,"candidate":181.619698},
+    {"reference":181.414367,"candidate":181.035117}
+  ],
+  "validation": "200 deterministic randomized triangles matched coverage; RGB within one channel unit",
+  "reason": "Incremental candidate slower; reciprocal change within measurement noise. Preserve original raster arithmetic."
+}

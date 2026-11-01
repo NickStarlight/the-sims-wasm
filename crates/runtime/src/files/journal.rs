@@ -114,6 +114,48 @@ pub fn validate_save_journal(bytes: &[u8]) -> Result<()> {
 }
 
 impl Files {
+    /// Snapshot paths touched by a fully replayed journal, including deletion
+    /// tombstones. Untouched installation assets remain outside the snapshot.
+    pub fn compact_journal(&self, bytes: &[u8]) -> Result<Vec<u8>> {
+        let mut paths = BTreeSet::new();
+        let mut end = 0;
+        while let Some(frame) = read_frame(bytes, end)? {
+            paths.insert(paths::normalize("", frame.change.path()));
+            if let Change::Move { to, .. } | Change::Copy { to, .. } = &frame.change {
+                paths.insert(paths::normalize("", to));
+            }
+            end = frame.end;
+        }
+        if end != bytes.len() {
+            return Err(Error::Host("incomplete journal cannot be compacted".into()));
+        }
+        let mut snapshot = Files::default();
+        for path in paths {
+            match self.entries.get(&path) {
+                Some(node) => {
+                    let mut prefix = String::new();
+                    let spelling = path
+                        .split('/')
+                        .map(|part| {
+                            if !prefix.is_empty() {
+                                prefix.push('/');
+                            }
+                            prefix.push_str(part);
+                            self.names
+                                .get(&prefix)
+                                .cloned()
+                                .unwrap_or_else(|| part.to_owned())
+                        })
+                        .collect::<Vec<_>>()
+                        .join("/");
+                    snapshot.record(Change::Replace { path: spelling }, &node.borrow().bytes()?)?;
+                }
+                None => snapshot.record(Change::Delete { path }, &[])?,
+            }
+        }
+        Ok(snapshot.take_file_changes())
+    }
+
     pub fn take_file_changes(&mut self) -> Vec<u8> {
         std::mem::take(&mut self.journal)
     }
@@ -155,6 +197,29 @@ impl Files {
         change.validate(data.len())?;
         let spelling = paths::preserve_case("", change.path());
         let path = spelling.to_lowercase();
+        // Reuse a private materialized overlay. Shared nodes retain the replacement
+        // behavior so handles opened before replay keep their original backing.
+        if let Change::Write { size, .. } | Change::Resize { size, .. } = &change {
+            if let Some(node) = self
+                .entries
+                .get(&path)
+                .filter(|node| Rc::strong_count(node) == 1)
+            {
+                let mut node = node.borrow_mut();
+                if let Some(bytes) = &mut node.overlay {
+                    bytes
+                        .try_reserve(size.saturating_sub(bytes.len()))
+                        .map_err(|_| Error::OutOfMemory)?;
+                    bytes.resize(*size, 0);
+                    if let Change::Write { offset, .. } = &change {
+                        bytes[*offset..*offset + data.len()].copy_from_slice(data);
+                    }
+                    drop(node);
+                    self.remember_name(&spelling);
+                    return Ok(());
+                }
+            }
+        }
         let content = match &change {
             Change::Delete { .. } => {
                 self.entries.remove(&path);

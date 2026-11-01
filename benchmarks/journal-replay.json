@@ -1,0 +1,7 @@
+{
+  "command": "cargo test -p sims-runtime --release benchmark_repeated_journal_writes -- --ignored --nocapture",
+  "scenario": "Five replays, each replacing a 16 MiB file then applying 200 one-byte writes; final contents verified",
+  "beforeMs": 438.042741,
+  "afterMs": 13.699409,
+  "note": "Single native microbenchmark run per version; not an end-to-end gameplay speedup"
+}

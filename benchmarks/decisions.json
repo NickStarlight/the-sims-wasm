@@ -1,0 +1,31 @@
+{
+  "retained": [
+    "Correct legacy string length and bounded-copy behavior",
+    "Reuse private overlays during journal replay",
+    "Compact large journals transactionally at startup",
+    "Honor render-target alpha blend factors",
+    "Batch bounded guest text reads",
+    "Use wasm-encoder for shared instruction emission and LEB encoding"
+  ],
+  "rejectedExperiments": [
+    "Incremental raster edge stepping: slower in the measured native workload",
+    "Reciprocal-area raster arithmetic: no repeatable gain; retain original arithmetic"
+  ],
+  "compatibilityBoundaries": [
+    "x87 still uses binary64 arithmetic. New executable tests document extended-format roundtrip and precision/exponent losses; no software extended-precision migration was attempted.",
+    "The small CP1252 table remains. A broad encoding library was a conditional candidate in the review, not an established improvement for this single-code-page runtime.",
+    "Browser Wasm adapters remain custom and covered by runtime tests. Library consolidation was applied to the Rust compiler; build-time conversion of all browser adapters remains unimplemented."
+  ],
+  "validation": {
+    "cargo xtask check --browser": "passed: formatting, strict native/Wasm clippy, 302 tests and all Node runtime/compiler/cache suites",
+    "npm run format:check": "passed",
+    "chrome OPFS compaction": "transactional replacement and reopen passed in isolated storage",
+    "game": "Neighborhood 1 community park, cold isolated Chrome context, 1280x960, paced right-button camera panning. Reports and screenshots verified; residential prompt-blocked samples excluded."
+  },
+  "measurementLimits": [
+    "Single controlled baseline; per-change runs establish stability, not statistical significance.",
+    "Scene timing uses screenshots sampled every 250 ms plus screenshot overhead.",
+    "Native replay and raster microbenchmarks are not end-to-end browser speedups.",
+    "No demonstrated improvement in gameplay frame rate."
+  ]
+}

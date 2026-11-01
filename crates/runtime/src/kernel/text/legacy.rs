@@ -2,27 +2,19 @@
 use super::*;
 use crate::kernel::{manifest::Call, Kernel};
 fn units<M: GuestMemory>(p: &Process<M>, address: u32, count: i32, wide: bool) -> Result<Vec<u16>> {
-    let width = if wide { 2 } else { 1 };
-    let limit = if count < 0 { 1_048_576 } else { count as u32 };
-    if limit > 1_048_576 {
-        return Err(Error::InvalidRange);
-    }
-    let mut units = Vec::new();
-    for i in 0..limit {
-        let at = address.checked_add(i * width).ok_or(Error::InvalidRange)?;
-        let mut b = [0; 2];
-        p.read(at, &mut b[..width as usize])?;
-        let v = u16::from_le_bytes(b);
-        if count < 0 && v == 0 {
-            return Ok(units);
-        }
-        units.push(v);
-    }
+    let mut units = super::read_units(
+        p,
+        address,
+        if count < 0 { 1_048_576 } else { count as u32 },
+        wide,
+        count < 0,
+    )?;
     if count < 0 {
-        return Err(Error::InvalidRange);
+        units.pop();
     }
     Ok(units)
 }
+
 fn fold(v: u16) -> u16 {
     if (65..=90).contains(&v) {
         v + 32
@@ -42,24 +34,25 @@ impl Kernel {
                 if a[0] == 0 {
                     return Ok(0);
                 }
-                let mut n = 0;
-                while n < 4096 {
-                    let mut b = [0];
-                    p.read(a[0].checked_add(n).ok_or(Error::InvalidRange)?, &mut b)?;
-                    if b[0] == 0 {
-                        break;
-                    }
-                    n += 1;
-                }
-                Ok(n)
+                Ok(p.read_c_string(a[0], i32::MAX as u32)?.len() as u32)
             }
             Call::LstrcpynA => {
-                let source = units(p, a[1], -1, false)?;
-                let mut bytes: Vec<_> = source
-                    .into_iter()
-                    .take(a[2].saturating_sub(1) as usize)
-                    .map(|v| v as u8)
-                    .collect();
+                let capacity = a[2] as i32;
+                if capacity <= 0 {
+                    return Ok(a[0]);
+                }
+                let mut bytes = Vec::new();
+                for index in 0..capacity as u32 - 1 {
+                    let mut byte = [0];
+                    p.read(
+                        a[1].checked_add(index).ok_or(Error::InvalidRange)?,
+                        &mut byte,
+                    )?;
+                    if byte[0] == 0 {
+                        break;
+                    }
+                    bytes.push(byte[0]);
+                }
                 bytes.push(0);
                 p.write(a[0], &bytes)?;
                 Ok(a[0])

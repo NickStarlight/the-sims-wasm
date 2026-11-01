@@ -618,3 +618,28 @@ fn locale_wide_and_ansi_sizes_use_their_own_units_and_preserve_short_buffers() {
         assert_eq!(u32::from_le_bytes(number), 0x409);
     }
 }
+
+#[test]
+fn legacy_strings_respect_lengths_and_copy_boundaries() {
+    let mut p = process();
+    let mut k = Kernel::default();
+    let mut long = vec![b'x'; 5000];
+    long.push(0);
+    p.map(0x200000, &long, false).unwrap();
+    assert_eq!(call(&mut k, &mut p, "lstrlenA", &[0x200000]), 5000);
+    p.map(0x300000, b"abc", false).unwrap();
+    p.map(0x400000, &[0xaa; 8], true).unwrap();
+    assert_eq!(
+        call(&mut k, &mut p, "lstrcpynA", &[0x400000, 0x300000, 4]),
+        0x400000
+    );
+    let mut bytes = [0; 8];
+    p.read(0x400000, &mut bytes).unwrap();
+    assert_eq!(&bytes, b"abc\0\xaa\xaa\xaa\xaa");
+    call(&mut k, &mut p, "lstrcpynA", &[0x400004, 0, 0]);
+    p.read(0x400000, &mut bytes).unwrap();
+    assert_eq!(bytes[4], 0xaa);
+    call(&mut k, &mut p, "lstrcpynA", &[0x400004, 0, 1]);
+    p.read(0x400000, &mut bytes).unwrap();
+    assert_eq!(bytes[4], 0);
+}
