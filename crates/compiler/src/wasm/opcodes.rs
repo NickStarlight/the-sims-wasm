@@ -52,8 +52,8 @@ impl Op {
     pub const I64_EQZ: u8 = 0x50;
     pub const I64_EQ: u8 = 0x51;
     pub const I64_NE: u8 = 0x52;
-    pub const I64_LE_S: u8 = 0x55;
-    pub const I64_GE_S: u8 = 0x56;
+    pub const I64_LE_S: u8 = 0x57;
+    pub const I64_GE_S: u8 = 0x59;
     pub const F64_EQ: u8 = 0x61;
     pub const F64_NE: u8 = 0x62;
     pub const F64_LT: u8 = 0x63;

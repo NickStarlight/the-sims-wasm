@@ -5,7 +5,6 @@ use super::abi;
 use super::emit_helpers::{emit_address, emit_load, i32c, i64c, reg, set_reg, Seq};
 use super::emit_helpers::{local_get, local_set};
 use super::layout::{FTMP, FULL, T1};
-use crate::wasm::leb::sleb;
 use crate::wasm::opcodes::Op;
 use crate::x86::types::{Insn, MemOp};
 
