@@ -14,7 +14,7 @@ export async function openSaveStorage(files, process, clientId) {
       flush: () => storage.flush(),
       async close() {
         try {
-          storage.close()
+          await storage.close()
         } finally {
           await release()
         }
@@ -39,8 +39,30 @@ async function openJournal(files, process, clientId) {
   const identity = `${clientId}-${await hash(find('userdata/neighborhood.iff'))}`
   const root = await navigator.storage.getDirectory()
   const directory = await saveDirectory(root, true)
+  const releaseJournal = await acquireSaveLock('exclusive', `sims-web:journal:${identity}`)
+
+  try {
+    const storage = await openJournalFile(directory, process, identity)
+
+    return {
+      flush: storage.flush,
+      async close() {
+        try {
+          await storage.close()
+        } finally {
+          await releaseJournal()
+        }
+      },
+    }
+  } catch (error) {
+    await releaseJournal()
+    throw error
+  }
+}
+
+async function openJournalFile(directory, process, identity) {
   const entry = await directory.getFileHandle(`${identity}.journal`, { create: true })
-  const file = await entry.createSyncAccessHandle()
+  let file = await entry.createSyncAccessHandle()
   let end
   let failed = false
 
@@ -53,8 +75,33 @@ async function openJournal(files, process, clientId) {
       file.truncate(end)
       file.flush()
     }
+
+    // Rewrite only substantial histories with at least 50% reclaimable space.
+    // createWritable commits its temporary file on close; never truncate the
+    // original journal to install a snapshot. The per-journal lock spans the
+    // gap between releasing and reacquiring the synchronous handle.
+    if (end >= 16 * 1024 * 1024 && typeof entry.createWritable === 'function') {
+      const snapshot = process.compactJournal(bytes.subarray(0, end))
+
+      if (snapshot.length <= end / 2) {
+        file.close()
+        file = undefined
+        const writer = await entry.createWritable()
+
+        try {
+          await writer.write(snapshot)
+          await writer.close()
+        } catch (error) {
+          await writer.abort().catch(() => {})
+          throw error
+        }
+
+        file = await entry.createSyncAccessHandle()
+        end = snapshot.length
+      }
+    }
   } catch (error) {
-    file.close()
+    file?.close()
     throw error
   }
 

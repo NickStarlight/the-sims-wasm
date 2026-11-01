@@ -60,6 +60,7 @@ export class Process {
     cancelCall(token: number): boolean;
     cancelException(token: number): boolean;
     cancelWait(token: number): boolean;
+    compactJournal(bytes: Uint8Array): Uint8Array;
     cpuHelper(id: number, registers: Int32Array, monotonic_ms: number): Int32Array;
     exportAddress(dll: string, symbol: any): number;
     finishThread(id: number, code: number): void;
@@ -150,6 +151,7 @@ export interface InitOutput {
     readonly process_cancelCall: (a: number, b: number) => number;
     readonly process_cancelException: (a: number, b: number) => number;
     readonly process_cancelWait: (a: number, b: number) => number;
+    readonly process_compactJournal: (a: number, b: number, c: number) => [number, number, number, number];
     readonly process_cpuHelper: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly process_exportAddress: (a: number, b: number, c: number, d: any) => number;
     readonly process_finishThread: (a: number, b: number, c: number) => [number, number];
