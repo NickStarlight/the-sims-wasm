@@ -88,9 +88,9 @@ fn cpuid(registers: &mut [i32; 16]) {
     match registers[EAX] as u32 {
         0 => {
             registers[EAX] = 1;
-            registers[EBX] = i32::from_le_bytes(*b"Genu");
-            registers[EDX] = i32::from_le_bytes(*b"ineI");
-            registers[ECX] = i32::from_le_bytes(*b"ntel");
+            registers[EBX] = i32::from_le_bytes(*b"Auth");
+            registers[EDX] = i32::from_le_bytes(*b"enti");
+            registers[ECX] = i32::from_le_bytes(*b"cAMD");
         }
         1 => {
             registers[EAX] = 0x633;

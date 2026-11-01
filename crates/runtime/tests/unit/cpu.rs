@@ -112,7 +112,7 @@ fn cpuid_advertises_only_lowered_instruction_families() {
         .into_iter()
         .flat_map(|r| vendor[r].to_le_bytes())
         .collect();
-    assert_eq!(name, b"GenuineIntel");
+    assert_eq!(name, b"AuthenticAMD");
     assert_eq!(vendor[EAX], 1);
     input[EAX] = 1;
     let features = process.cpu_helper(10, input, 0.0).unwrap();
