@@ -58,3 +58,45 @@ pub(super) fn instruction_root(insn: &Insn, code: &[Range]) -> Option<u32> {
     };
     contains(code, pointer).then_some(pointer)
 }
+
+/// An x86 MSVC EH prologue registers incoming EAX at SEH frame+4.
+/// Keep ordinary register constants out of discovery: require the complete
+/// address-independent helper body and an adjacent direct call to that helper.
+pub(super) fn registered_handler(
+    image: &GuestMem,
+    base: u32,
+    pair: &[Insn],
+    code: &[Range],
+) -> Option<u32> {
+    let [value, call] = pair else {
+        return None;
+    };
+    if value.mnem != Mnem::Mov
+        || call.mnem != Mnem::Call
+        || value.va.checked_add(value.size)? != call.va
+    {
+        return None;
+    }
+    let [Operand::Reg { r: 0, size: 4 }, Operand::Imm(handler)] = value.ops.as_slice() else {
+        return None;
+    };
+    let handler = *handler as u32;
+    if !contains(code, handler) {
+        return None;
+    }
+    let helper = call.rel?;
+    const PROLOGUE: &[u8] = &[
+        0x6a, 0xff, 0x50, 0x64, 0xa1, 0, 0, 0, 0, 0x50, 0x8b, 0x44, 0x24, 0x0c, 0x64, 0x89, 0x25,
+        0, 0, 0, 0, 0x89, 0x6c, 0x24, 0x0c, 0x8d, 0x6c, 0x24, 0x0c, 0x50, 0xc3,
+    ];
+    let end = helper.checked_add(PROLOGUE.len() as u32)?;
+    if !code.iter().any(|&(lo, hi)| helper >= lo && end <= hi) {
+        return None;
+    }
+    let offset = helper.checked_sub(base)? as usize;
+    PROLOGUE
+        .iter()
+        .enumerate()
+        .all(|(i, &byte)| image.get(offset + i) == Some(byte))
+        .then_some(handler)
+}

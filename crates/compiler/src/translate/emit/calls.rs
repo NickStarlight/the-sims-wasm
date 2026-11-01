@@ -2,7 +2,7 @@
 
 use super::{
     abi, emit_load, emit_store, i32c, local_get, local_set, mem_at, read_op, reg, set_reg, sleb,
-    EmitCtx, Op, Operand, Seq, ESP, T3,
+    EmitCtx, ImportTarget, Op, Operand, Seq, ESP, T3,
 };
 
 /// Push a fake return address, then call.
@@ -33,15 +33,29 @@ pub(super) fn call_indirect(target: &Operand, ctx: &EmitCtx, fake_ret: Option<u3
     // absolute address = static IAT slot → resolve to its shim's table index
     if let Operand::Mem(m) = target {
         if m.base == -1 && m.index == -1 {
-            let idx = ctx.iat_shim.get(&(m.disp as u32)).copied().unwrap_or(-1);
-            if idx >= 0 {
-                let mut v = pre;
-                v.push(Op::I32_CONST);
-                v.extend(sleb(idx));
-                v.push(Op::CALL_INDIRECT);
-                v.push(0);
-                v.push(0);
-                return v;
+            match ctx.iat_shim.get(&(m.disp as u32)).copied() {
+                Some(ImportTarget::Ftol) if !m.fs && m.size == 4 => {
+                    let mut v = pre;
+                    v.extend(crate::translate::emit_fpu::ftol());
+                    // CALL pushed its return address above; a tail JMP retains
+                    // the caller's original return. Both consume exactly one.
+                    v.extend(set_reg(abi::ACTUAL_RETURN, emit_load(&mem_at(ESP, 0, 4))));
+                    let mut next_sp = reg(ESP);
+                    next_sp.extend(i32c(4));
+                    next_sp.push(Op::I32_ADD);
+                    v.extend(set_reg(ESP, next_sp));
+                    return v;
+                }
+                Some(ImportTarget::Table(idx)) if idx >= 0 => {
+                    let mut v = pre;
+                    v.push(Op::I32_CONST);
+                    v.extend(sleb(idx));
+                    v.push(Op::CALL_INDIRECT);
+                    v.push(0);
+                    v.push(0);
+                    return v;
+                }
+                _ => {}
             }
         }
     }

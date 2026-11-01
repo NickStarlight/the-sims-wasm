@@ -11,11 +11,6 @@ impl Audio {
         now: f64,
     ) -> Result<u32> {
         match slot {
-            1 => Ok(1),
-            2 => {
-                self.stop(id)?;
-                Ok(1)
-            }
             3 => {
                 if a[1] == 0 || get(p, a[1])? < 20 {
                     return Ok(INVALID);

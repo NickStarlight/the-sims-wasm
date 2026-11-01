@@ -1,7 +1,6 @@
 //! Original DirectSound vtable layout and supported identities, with process-owned objects.
 use super::*;
 use crate::modules::{ModuleCatalog, Symbol};
-use std::collections::BTreeSet;
 pub(super) const INVALID: u32 = 0x80070057;
 pub(super) const UNSUPPORTED: u32 = 0x80004001;
 pub(super) const CONTROL: u32 = 0x8878001e;
@@ -9,16 +8,20 @@ pub(super) const INITIALIZED: u32 = 0x88780082;
 
 pub(super) struct Adapter {
     tables: [u32; 2],
-    devices: BTreeSet<u32>,
-    objects: BTreeMap<u32, u32>,
+    devices: BTreeMap<u32, u32>,
+    objects: BTreeMap<u32, BufferObject>,
     pub priority: u32,
     pub primary: u32,
+}
+struct BufferObject {
+    id: u32,
+    references: u32,
 }
 impl Default for Adapter {
     fn default() -> Self {
         Self {
             tables: [0; 2],
-            devices: BTreeSet::new(),
+            devices: BTreeMap::new(),
             objects: BTreeMap::new(),
             priority: 1,
             primary: 0,
@@ -55,19 +58,60 @@ impl Audio {
         };
         let slot: u32 = slot.parse().map_err(|_| Error::InvalidRange)?;
         if buffer {
-            let Some(id) = self.adapter.objects.get(&args[0]).copied() else {
+            let Some(id) = self.buffer_id(args[0]) else {
                 return Ok(INVALID);
             };
             if slot == 0 {
-                return query(process, args, true);
+                let result = query(process, args, true)?;
+                if result == 0 {
+                    self.add_buffer_ref(args[0]);
+                }
+                return Ok(result);
+            }
+            if slot == 1 {
+                return Ok(self.add_buffer_ref(args[0]));
+            }
+            if slot == 2 {
+                let object = self.adapter.objects.get_mut(&args[0]).unwrap();
+                if object.references > 1 {
+                    object.references -= 1;
+                    return Ok(object.references);
+                }
+                self.remove_buffer(process, id)?;
+                process.heap_free(args[0])?;
+                self.adapter.objects.remove(&args[0]);
+                if self.adapter.primary == args[0] {
+                    self.adapter.primary = 0;
+                }
+                return Ok(0);
             }
             self.buffer_call(process, id, slot, args, now)
         } else {
-            if !self.adapter.devices.contains(&args[0]) {
+            if !self.adapter.devices.contains_key(&args[0]) {
                 return Ok(INVALID);
             }
             if slot == 0 {
-                return query(process, args, false);
+                let result = query(process, args, false)?;
+                if result == 0 {
+                    let references = self.adapter.devices.get_mut(&args[0]).unwrap();
+                    *references = references.saturating_add(1);
+                }
+                return Ok(result);
+            }
+            if slot == 1 {
+                let references = self.adapter.devices.get_mut(&args[0]).unwrap();
+                *references = references.saturating_add(1);
+                return Ok(*references);
+            }
+            if slot == 2 {
+                let references = self.adapter.devices.get_mut(&args[0]).unwrap();
+                if *references > 1 {
+                    *references -= 1;
+                    return Ok(*references);
+                }
+                process.heap_free(args[0])?;
+                self.adapter.devices.remove(&args[0]);
+                return Ok(0);
             }
             self.device_call(process, modules, slot, args)
         }
@@ -99,14 +143,21 @@ impl Audio {
         let object = process.heap_alloc(4)?;
         put(process, object, table)?;
         if let Some(id) = buffer {
-            self.adapter.objects.insert(object, id);
+            self.adapter
+                .objects
+                .insert(object, BufferObject { id, references: 1 });
         } else {
-            self.adapter.devices.insert(object);
+            self.adapter.devices.insert(object, 1);
         }
         Ok(object)
     }
     pub(super) fn buffer_id(&self, object: u32) -> Option<u32> {
-        self.adapter.objects.get(&object).copied()
+        self.adapter.objects.get(&object).map(|object| object.id)
+    }
+    pub(super) fn add_buffer_ref(&mut self, object: u32) -> u32 {
+        let object = self.adapter.objects.get_mut(&object).unwrap();
+        object.references = object.references.saturating_add(1);
+        object.references
     }
 }
 fn query<M: GuestMemory>(process: &mut Process<M>, args: &[u32], buffer: bool) -> Result<u32> {

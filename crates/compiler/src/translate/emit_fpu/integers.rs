@@ -2,8 +2,55 @@
 
 use super::{
     abi, emit_address, f64c, i32c, i64c, load_f64, local_get, local_set, pop_top, push_top,
-    read_f64, reg, round_integer, set_reg, slot, store_f64, store_int, MemOp, Op, Seq, FTMP,
+    read_f64, reg, round_integer, set_reg, slot, store_f64, store_int, MemOp, Op, Seq, C1, FTMP,
+    FULL,
 };
+
+/// Legacy MSVCRT _ftol: truncate ST0 to signed i64 in EDX:EAX and pop once.
+/// Its temporary rounding mode never changes the caller's control word.
+pub(crate) fn ftol() -> Seq {
+    let mut code = load_f64(slot(0));
+    code.push(Op::F64_TRUNC);
+    code.extend(local_set(FTMP));
+    let mut status = reg(abi::FP_STATUS);
+    status.extend(i32c(!C1));
+    status.push(Op::I32_AND);
+    code.extend(set_reg(abi::FP_STATUS, status));
+    code.extend(local_get(FTMP));
+    code.extend(f64c(-9223372036854775808.0));
+    code.push(Op::F64_GE);
+    code.extend(local_get(FTMP));
+    code.extend(f64c(9223372036854775808.0));
+    code.extend([Op::F64_LT, Op::I32_AND, Op::IF, 0x7e]);
+    // FISTP reports precision loss for a fractional input, independently of RC.
+    code.extend(load_f64(slot(0)));
+    code.extend(local_get(FTMP));
+    code.extend([Op::F64_NE, Op::IF, 0x40]);
+    let mut precision = reg(abi::FP_STATUS);
+    precision.extend(i32c(0x20));
+    precision.push(Op::I32_OR);
+    code.extend(set_reg(abi::FP_STATUS, precision));
+    code.push(Op::END);
+    code.extend(local_get(FTMP));
+    code.extend([Op::I64_TRUNC_F64_S, Op::ELSE]);
+    // Masked invalid conversion returns x87 integer indefinite, not a Wasm trap.
+    let mut invalid = reg(abi::FP_STATUS);
+    invalid.extend(i32c(1));
+    invalid.push(Op::I32_OR);
+    code.extend(set_reg(abi::FP_STATUS, invalid));
+    code.extend(i64c(i64::MIN));
+    code.push(Op::END);
+    code.extend(local_set(FULL));
+    let mut low = local_get(FULL);
+    low.push(Op::I32_WRAP_I64);
+    code.extend(set_reg(abi::EAX, low));
+    let mut high = local_get(FULL);
+    high.extend(i64c(32));
+    high.extend([Op::I64_SHR_S, Op::I32_WRAP_I64]);
+    code.extend(set_reg(abi::EDX, high));
+    code.extend(pop_top());
+    code
+}
 
 /// DF memory: FILD/FIST/FISTP m16, FILD/FISTP m64 (BCD forms return an unsupported-instruction error).
 pub(super) fn dfmem(reg_field: u8, m: &MemOp) -> Result<Seq, String> {

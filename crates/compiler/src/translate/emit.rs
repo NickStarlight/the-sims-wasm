@@ -14,6 +14,13 @@ use crate::wasm::leb::sleb;
 use crate::wasm::opcodes::Op;
 use crate::x86::types::{Insn, MemOp, Operand, Reg};
 
+/// Static IAT entries use either a host shim or an instruction-level CRT ABI.
+#[derive(Clone, Copy)]
+pub enum ImportTarget {
+    Table(i32),
+    Ftol,
+}
+
 /// Function-local bindings used during instruction emission.
 pub struct EmitCtx<'a> {
     /// Minimum pages required by this module's imported memory declaration.
@@ -24,8 +31,8 @@ pub struct EmitCtx<'a> {
     pub func_idx_of: &'a std::collections::HashMap<u32, i32>,
     /// wasm function index of the $idxOf helper
     pub idx_of: i32,
-    /// IAT slot VA → shim table index
-    pub iat_shim: &'a std::collections::HashMap<u32, i32>,
+    /// IAT slot VA → host table entry or compiler intrinsic.
+    pub iat_shim: &'a std::collections::HashMap<u32, ImportTarget>,
     /// Imported cooperative checkpoint, linked as env.blockTrace (index 1).
     pub block_trace: Option<u32>,
 }

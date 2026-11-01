@@ -1,5 +1,6 @@
 //! Assemble discovered guest functions into an executable Wasm module.
 
+mod amd;
 mod discovery;
 mod dispatch;
 #[cfg(test)]
@@ -21,7 +22,7 @@ mod segments;
 use super::error::EmitError;
 use super::{
     abi,
-    emit::EmitCtx,
+    emit::{EmitCtx, ImportTarget},
     layout::{locals_list, LOCAL_RUNS},
 };
 use crate::wasm::{
@@ -90,9 +91,37 @@ pub fn translate_program(
         func_idx_of.insert(*va, i as i32 + fc as i32);
     }
     let idx_of = n as i32 + fc as i32;
-    let mut iat_shim: HashMap<u32, i32> = HashMap::new();
+    let mut iat_shim = HashMap::new();
     for (i, imp) in info.imports.iter().enumerate() {
-        iat_shim.insert(imp.iat_va, i as i32 + sorted.len() as i32 + 1);
+        iat_shim.insert(
+            imp.iat_va,
+            ImportTarget::Table(i as i32 + sorted.len() as i32 + 1),
+        );
+    }
+    // _ftol consumes ST0 and returns EDX:EAX, so it cannot use a scalar host API.
+    // Module import addresses are preferred VAs until mapped to their DLL base.
+    for (mapped, image) in std::iter::once((info.image_base, info))
+        .chain(modules.iter().map(|module| (module.base, module.info)))
+    {
+        for import in &image.imports {
+            if import.dll.eq_ignore_ascii_case("msvcrt.dll")
+                && import.name.as_deref() == Some("_ftol")
+            {
+                let Some(offset) = import.iat_va.checked_sub(image.image_base) else {
+                    continue;
+                };
+                if offset
+                    .checked_add(4)
+                    .is_none_or(|end| end > image.size_of_image)
+                {
+                    continue;
+                }
+                let Some(address) = mapped.checked_add(offset) else {
+                    continue;
+                };
+                iat_shim.insert(address, ImportTarget::Ftol);
+            }
+        }
     }
 
     // wasm offsets in the trap map are relative to the body start including the

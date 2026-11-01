@@ -328,6 +328,13 @@ apis! {
 pub fn resolve(dll: &str, name: &str) -> Option<Api> {
     let normalized = dll.to_ascii_lowercase();
     let dll = normalized.strip_suffix(".dll").unwrap_or(&normalized);
+    // IJL imports the legacy MSVCRT allocation pair, whose default new returns
+    // null on failure. Reuse the same cdecl heap services without changing IDs.
+    let name = match (dll, name) {
+        ("msvcrt", "??2@YAPAXI@Z") => "malloc",
+        ("msvcrt", "??3@YAXPAX@Z") => "free",
+        _ => name,
+    };
     APIS.iter()
         .find(|api| api.dll[..api.dll.len() - 4].eq_ignore_ascii_case(dll) && api.name == name)
         .copied()

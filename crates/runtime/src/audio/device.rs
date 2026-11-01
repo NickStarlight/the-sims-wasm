@@ -18,7 +18,6 @@ impl Audio {
         a: &[u32],
     ) -> Result<u32> {
         match slot {
-            1 | 2 => Ok(1), // Preserve original shared-device lifetime policy.
             3 => self.create_sound_buffer(p, modules, a),
             4 => {
                 if a[1] == 0 {
@@ -115,6 +114,7 @@ impl Audio {
         };
         if primary && self.adapter.primary != 0 {
             put(p, a[2], self.adapter.primary)?;
+            self.add_buffer_ref(self.adapter.primary);
             return Ok(0);
         }
         let id = match self.create_buffer(

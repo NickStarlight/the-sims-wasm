@@ -361,6 +361,7 @@ mod environment;
 mod extended;
 pub(super) mod integer_copy;
 mod integers;
+pub(super) use integers::ftol;
 mod memory;
 mod operations;
 mod registers;

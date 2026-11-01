@@ -1,5 +1,5 @@
 //! Worklist discovery, with decode-gap filtering for speculative roots.
-use super::{images, model::ModuleImage, roots};
+use super::{amd, images, model::ModuleImage, roots};
 use crate::translate::blocks::{split_blocks, Block};
 use crate::x86::types::Mnem;
 use crate::{guestmem::GuestMem, pe::PeInfo};
@@ -37,6 +37,7 @@ pub(super) fn discover(
     modules: &[ModuleImage],
     diagnostics: &mut Vec<String>,
 ) -> Functions {
+    let amd = amd::Profile::recognize(image, base);
     let mut functions = Functions::new();
     let mut confirmed: HashSet<u32> = extra
         .iter()
@@ -49,6 +50,12 @@ pub(super) fn discover(
     roots::seed_data(image, base, info, modules, &mut speculative);
     let mut boundaries = BTreeMap::<u32, u32>::new();
     while let Some(address) = worklist.pop().or_else(|| speculative.pop()) {
+        if amd
+            .as_ref()
+            .is_some_and(|profile| profile.excludes(address))
+        {
+            continue;
+        }
         if functions.contains_key(&address) {
             continue;
         }
@@ -66,7 +73,7 @@ pub(super) fn discover(
                 }
             }
         }
-        let (blocks, index) = match split_blocks(
+        let (mut blocks, mut index) = match split_blocks(
             image,
             base,
             address,
@@ -80,6 +87,9 @@ pub(super) fn discover(
                 continue;
             }
         };
+        if let Some(profile) = &amd {
+            profile.specialize(address, &mut blocks, &mut index);
+        }
         let has_gap = blocks
             .iter()
             .flat_map(|b| &b.insns)
@@ -89,6 +99,13 @@ pub(super) fn discover(
                 "skipped function {address:#x}: decode gap (false root)"
             ));
             continue;
+        }
+        for block in &blocks {
+            for pair in block.insns.windows(2) {
+                if let Some(root) = roots::registered_handler(image, base, pair, &code) {
+                    speculative.push(root);
+                }
+            }
         }
         for insn in blocks.iter().flat_map(|b| &b.insns) {
             if confirmed.contains(&address) {
