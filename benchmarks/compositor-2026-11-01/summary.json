@@ -1,0 +1,29 @@
+{
+  "baselineCommit": "17e372f",
+  "order": [
+    "optimized 3 runs",
+    "baseline control 3 runs",
+    "optimized confirmation 3 runs"
+  ],
+  "fpsGainPercent": 4.32,
+  "microbenchmarkMedianMs": {
+    "plain": 54.91236799999979,
+    "span": 20.873203500000272
+  },
+  "microbenchmarkSpeedup": 2.63,
+  "correctnessCases": 328,
+  "rustTestsPassed": 304,
+  "pageErrors": [],
+  "sceneComparisons": 8,
+  "candidateSourceSha256": {
+    "crates/compiler/src/translate/kernels/compositor/alpha.rs": "dfa17d33117a2fbad1a704664aea752d5ef0aff484406f70eaac61b60cf1a956",
+    "crates/compiler/src/translate/kernels/compositor/alpha/classify.rs": "b276207746d537b1aece4d1317decd8dab14c3fbd3dfa7ccb2091cc3e5fff72b",
+    "crates/compiler/src/wasm/opcodes.rs": "a469e9599d9200932952fb0ceb96181b49bd2ffa6e5e63da00a660ab52368a98"
+  },
+  "limitations": [
+    "Single machine and community-lot scenario; small sequential batches.",
+    "Median of per-run p95 frame times changed from 61.3 to 61.8 ms; no demonstrated tail-latency improvement.",
+    "Load-time changes are below screenshot-polling resolution.",
+    "An earlier classification prototype had incorrect checkpoint accounting; its timings were discarded and are not included."
+  ]
+}

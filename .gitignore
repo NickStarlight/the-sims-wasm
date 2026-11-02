@@ -7,6 +7,7 @@
 /.client/
 *.[mM][dD]
 !/README.md
+!/benchmarks/README.md
 /docs
 /research
 /scripts

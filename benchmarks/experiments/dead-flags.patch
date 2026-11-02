@@ -1,0 +1,161 @@
+diff --git a/crates/compiler/src/translate/emit.rs b/crates/compiler/src/translate/emit.rs
+index 3d203f7..4bd88ab 100644
+--- a/crates/compiler/src/translate/emit.rs
++++ b/crates/compiler/src/translate/emit.rs
+@@ -39,20 +39,22 @@ pub struct EmitCtx<'a> {
+
+ const ESP: u8 = abi::ESP;
+
++fn pure_full_width_alu(i: &Insn) -> bool {
++    use crate::x86::types::Mnem::*;
++    matches!(i.mnem, Add | Sub | And | Or | Xor | Cmp | Test)
++        && matches!(i.ops.first(), Some(Operand::Reg { size: 4, .. }))
++        && matches!(
++            i.ops.get(1),
++            Some(Operand::Reg { size: 4, .. } | Operand::Imm(_))
++        )
++}
++
+ /// A narrow peephole: both instructions must be nonfaulting 32-bit ALU
+ /// operations and the second must overwrite every flag produced by the first.
+ /// The caller must not cross a checkpoint or segment boundary.
+ pub(crate) fn emit_overwritten_flags(insn: &Insn, next: &Insn) -> Option<Seq> {
+     use crate::x86::types::Mnem::*;
+-    let pure_alu = |i: &Insn| {
+-        matches!(i.mnem, Add | Sub | And | Or | Xor | Cmp | Test)
+-            && matches!(i.ops.first(), Some(Operand::Reg { size: 4, .. }))
+-            && matches!(
+-                i.ops.get(1),
+-                Some(Operand::Reg { size: 4, .. } | Operand::Imm(_))
+-            )
+-    };
+-    if !pure_alu(insn) || !pure_alu(next) {
++    if !pure_full_width_alu(insn) || !pure_full_width_alu(next) {
+         return None;
+     }
+     if matches!(insn.mnem, Cmp | Test) {
+@@ -72,6 +74,34 @@ pub(crate) fn emit_overwritten_flags(insn: &Insn, next: &Insn) -> Option<Seq> {
+     Some(write_op(&insn.ops[0], value))
+ }
+
++/// Look through nonfaulting flag-transparent instructions only. The caller
++/// bounds this iterator to the current segment and cooperative checkpoint.
++pub(crate) fn emit_overwritten_flags_after<'a>(
++    insn: &Insn,
++    following: impl Iterator<Item = &'a Insn>,
++) -> Option<Seq> {
++    if !pure_full_width_alu(insn) {
++        return None;
++    }
++    use crate::x86::types::Mnem::*;
++    for next in following {
++        let registers_only = next
++            .ops
++            .iter()
++            .all(|op| matches!(op, Operand::Reg { .. } | Operand::Imm(_)));
++        let transparent = match next.mnem {
++            Nop | Cwde | Cdq => true,
++            Mov | Movsx | Movzx | Xchg | Not | Bswap => registers_only,
++            Lea => matches!(next.ops.first(), Some(Operand::Reg { size: 4, .. })),
++            _ => false,
++        };
++        if !transparent {
++            return emit_overwritten_flags(insn, next);
++        }
++    }
++    None
++}
++
+ /// Emit one instruction. Sets NEXT=succId on fallthrough; returns for terminators.
+ pub fn emit_insn(
+     insn: &Insn,
+diff --git a/crates/compiler/src/translate/program/function.rs b/crates/compiler/src/translate/program/function.rs
+index 678e0c8..a97540f 100644
+--- a/crates/compiler/src/translate/program/function.rs
++++ b/crates/compiler/src/translate/program/function.rs
+@@ -156,15 +156,14 @@ pub(super) fn emit_function(
+                 rel: insn.rel.map(|r| r as i32),
+             });
+             let optimized = flow.instruction(insn, ctx, succ_id).or_else(|| {
+-                seg.insn_indices
+-                    .get(position + 1)
+-                    .filter(|_| (position + 1) % STRAIGHT_LINE_INTERVAL != 0)
+-                    .and_then(|&(next_block, next_insn)| {
+-                        crate::translate::emit::emit_overwritten_flags(
+-                            insn,
+-                            &blocks[next_block].insns[next_insn],
+-                        )
+-                    })
++                let end = ((position / STRAIGHT_LINE_INTERVAL + 1) * STRAIGHT_LINE_INTERVAL)
++                    .min(seg.insn_indices.len());
++                crate::translate::emit::emit_overwritten_flags_after(
++                    insn,
++                    seg.insn_indices[position + 1..end]
++                        .iter()
++                        .map(|&(bi, ii)| &blocks[bi].insns[ii]),
++                )
+             });
+             let piece = match optimized {
+                 Some(piece) => piece,
+diff --git a/crates/compiler/tests/support/translate.rs b/crates/compiler/tests/support/translate.rs
+index 6a9c6a9..b9c7694 100644
+--- a/crates/compiler/tests/support/translate.rs
++++ b/crates/compiler/tests/support/translate.rs
+@@ -52,8 +52,14 @@ fn execute_v8_mode(routines: &[(&'static str, Vec<u8>)], assertions: &str, optim
+             let instruction = decode_insn(&memory, 0, offset).unwrap();
+             let next = offset + instruction.size;
+             let shortened = if optimized && next < code.len() as u32 {
+-                let following = decode_insn(&memory, 0, next).unwrap();
+-                super::emit::emit_overwritten_flags(&instruction, &following)
++                let mut following = Vec::new();
++                let mut at = next;
++                while at < code.len() as u32 {
++                    let decoded = decode_insn(&memory, 0, at).unwrap();
++                    at += decoded.size;
++                    following.push(decoded);
++                }
++                super::emit::emit_overwritten_flags_after(&instruction, following.iter())
+             } else {
+                 None
+             };
+diff --git a/crates/compiler/tests/unit/translate/emit_flags.rs b/crates/compiler/tests/unit/translate/emit_flags.rs
+index cc0593e..62ddf1e 100644
+--- a/crates/compiler/tests/unit/translate/emit_flags.rs
++++ b/crates/compiler/tests/unit/translate/emit_flags.rs
+@@ -24,6 +24,17 @@ for (let value = 0; value < 65536; value++) {
+ env.eax.value = -1; env.edx.value = 0x10000; env.esp.value = 0x1000;
+ assert.throws(() => run.fault(), WebAssembly.RuntimeError);
+ assert.equal(env.flags.value & 0x41, 0x41);
++env.eax.value = -1; env.edx.value = 0x10000;
++assert.throws(() => run.separated_fault(), WebAssembly.RuntimeError);
++assert.equal(env.flags.value & 0x41, 0x41);
++env.eax.value = -1; run.separated_carry();
++assert.equal(env.eax.value, 1);
++for (const value of [0, -1, 0x7fffffff, -2147483648, 123456]) {
++ env.eax.value=value;run.separated();
++ assert.equal(env.edi.value,(value+1)|0);
++ assert.equal(env.eax.value,((value+1)^0x55)|0);
++ assert.equal(env.flags.value & 0x40,env.eax.value===0?0x40:0);
++}
+ // Carry consumers and partial-register flag preservation cannot use this peephole.
+ env.eax.value = -1; env.esp.value = 0x1000; run.carry();
+ assert.equal(env.eax.value, 1);
+@@ -31,6 +42,18 @@ assert.equal(env.eax.value, 1);
+
+ fn routines() -> Vec<(&'static str, Vec<u8>)> {
+     vec![
++        (
++            "separated",
++            vec![0x83, 0xc0, 1, 0x89, 0xc7, 0x83, 0xf0, 0x55],
++        ),
++        (
++            "separated_fault",
++            vec![0x83, 0xc0, 1, 0x89, 0xc1, 0x8b, 0x3a, 0x83, 0xf0, 0x55],
++        ),
++        (
++            "separated_carry",
++            vec![0x83, 0xc0, 1, 0x89, 0xc1, 0x83, 0xd0, 0],
++        ),
+         ("parity", vec![0x83, 0xc0, 0, 0xc3]),
+         ("overwritten", vec![0x83, 0xc0, 17, 0x83, 0xf0, 0x55, 0xc3]),
+         ("fault", vec![0x83, 0xc0, 1, 0x03, 0x02, 0xc3]),

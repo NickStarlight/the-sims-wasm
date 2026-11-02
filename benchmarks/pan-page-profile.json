@@ -1,0 +1,76 @@
+{
+  "sampledSeconds": 15.590322,
+  "categoriesPercent": {
+    "other": 100.0
+  },
+  "topSelfTimeMs": [
+    [
+      "(idle)",
+      15359.31
+    ],
+    [
+      "(program)",
+      176.26
+    ],
+    [
+      "(garbage collector)",
+      12.88
+    ],
+    [
+      "texSubImage2D",
+      10.56
+    ],
+    [
+      "",
+      5.28
+    ],
+    [
+      "worker.onmessage",
+      5.27
+    ],
+    [
+      "drawArrays",
+      4.18
+    ],
+    [
+      "postMessage",
+      3.16
+    ],
+    [
+      "distribution",
+      3.16
+    ],
+    [
+      "paint",
+      2.4
+    ],
+    [
+      "getBoundingClientRect",
+      2.11
+    ],
+    [
+      "onPointer",
+      1.06
+    ],
+    [
+      "eval",
+      1.06
+    ],
+    [
+      "position",
+      1.06
+    ],
+    [
+      "useProgram",
+      1.05
+    ],
+    [
+      "frame",
+      0.87
+    ],
+    [
+      "epochNow",
+      0.66
+    ]
+  ]
+}

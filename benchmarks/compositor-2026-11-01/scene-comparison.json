@@ -1,0 +1,114 @@
+[
+  {
+    "left": "/tmp/classify-control-1-lot.png",
+    "right": "/tmp/classify-control-2-lot.png",
+    "region": {
+      "x": 0,
+      "y": 160,
+      "width": 1280,
+      "height": 620
+    },
+    "pixels": 793600,
+    "changed": 0,
+    "percentChanged": 0,
+    "maxChannelDifference": 0
+  },
+  {
+    "left": "/tmp/classify-control-1-lot.png",
+    "right": "/tmp/classify-control-3-lot.png",
+    "region": {
+      "x": 0,
+      "y": 160,
+      "width": 1280,
+      "height": 620
+    },
+    "pixels": 793600,
+    "changed": 0,
+    "percentChanged": 0,
+    "maxChannelDifference": 0
+  },
+  {
+    "left": "/tmp/classify-control-1-lot.png",
+    "right": "/tmp/classify-final-1-lot.png",
+    "region": {
+      "x": 0,
+      "y": 160,
+      "width": 1280,
+      "height": 620
+    },
+    "pixels": 793600,
+    "changed": 0,
+    "percentChanged": 0,
+    "maxChannelDifference": 0
+  },
+  {
+    "left": "/tmp/classify-control-1-lot.png",
+    "right": "/tmp/classify-final-2-lot.png",
+    "region": {
+      "x": 0,
+      "y": 160,
+      "width": 1280,
+      "height": 620
+    },
+    "pixels": 793600,
+    "changed": 0,
+    "percentChanged": 0,
+    "maxChannelDifference": 0
+  },
+  {
+    "left": "/tmp/classify-control-1-lot.png",
+    "right": "/tmp/classify-final-3-lot.png",
+    "region": {
+      "x": 0,
+      "y": 160,
+      "width": 1280,
+      "height": 620
+    },
+    "pixels": 793600,
+    "changed": 0,
+    "percentChanged": 0,
+    "maxChannelDifference": 0
+  },
+  {
+    "left": "/tmp/classify-control-1-lot.png",
+    "right": "/tmp/classify-confirm-1-lot.png",
+    "region": {
+      "x": 0,
+      "y": 160,
+      "width": 1280,
+      "height": 620
+    },
+    "pixels": 793600,
+    "changed": 0,
+    "percentChanged": 0,
+    "maxChannelDifference": 0
+  },
+  {
+    "left": "/tmp/classify-control-1-lot.png",
+    "right": "/tmp/classify-confirm-2-lot.png",
+    "region": {
+      "x": 0,
+      "y": 160,
+      "width": 1280,
+      "height": 620
+    },
+    "pixels": 793600,
+    "changed": 0,
+    "percentChanged": 0,
+    "maxChannelDifference": 0
+  },
+  {
+    "left": "/tmp/classify-control-1-lot.png",
+    "right": "/tmp/classify-confirm-3-lot.png",
+    "region": {
+      "x": 0,
+      "y": 160,
+      "width": 1280,
+      "height": 620
+    },
+    "pixels": 793600,
+    "changed": 0,
+    "percentChanged": 0,
+    "maxChannelDifference": 0
+  }
+]

@@ -1,0 +1,359 @@
+diff --git a/crates/compiler/src/translate/kernels/compositor/alpha.rs b/crates/compiler/src/translate/kernels/compositor/alpha.rs
+index 5541a2d..199bf09 100644
+--- a/crates/compiler/src/translate/kernels/compositor/alpha.rs
++++ b/crates/compiler/src/translate/kernels/compositor/alpha.rs
+@@ -11,6 +11,17 @@ pub(super) fn loop_kernel(
+     context: &super::super::super::emit::EmitCtx,
+     depth: i32,
+ ) -> Option<Seq> {
++    if let Some(successor) = match address {
++        0x49890f => Some(0x49891f),
++        0x4989dc => Some(0x4989ec),
++        _ => None,
++    } {
++        return Some(copy_previous(
++            *context.id.get(&successor)?,
++            depth,
++            context.block_trace.is_some(),
++        ));
++    }
+     if address == 0x4989ff {
+         return Some(masked_span(
+             *context.id.get(&0x498aa3)?,
+@@ -28,6 +39,98 @@ pub(super) fn loop_kernel(
+     ))
+ }
+
++/// Copy the remaining words in the previous-color row. Keep the native forward
++/// load/store order even for overlap: memcpy/memmove semantics are not equivalent.
++/// Validate the entire span before suppressing its per-word flags/checkpoints.
++fn copy_previous(successor: i32, depth: i32, checkpointed: bool) -> Seq {
++    let mut code = vec![Op::BLOCK, 0x40];
++    let guard = |code: &mut Seq, condition: Seq| {
++        code.extend(condition);
++        code.extend([Op::I32_EQZ, Op::BR_IF, 0]);
++    };
++    guard(
++        &mut code,
++        binary(reg(abi::EAX), i32c(PREVIOUS), Op::I32_GE_U),
++    );
++    guard(
++        &mut code,
++        binary(reg(abi::EAX), i32c(PREVIOUS + 64), Op::I32_LT_U),
++    );
++    guard(
++        &mut code,
++        binary(reg(abi::EAX), i32c(1), Op::I32_AND)
++            .into_iter()
++            .chain([Op::I32_EQZ])
++            .collect(),
++    );
++    code.extend(binary(i32c(PREVIOUS + 64), reg(abi::EAX), Op::I32_SUB));
++    code.extend(local_set(COUNT)); // remaining byte count
++    cache_bounds(&mut code);
++    guard(&mut code, within(i32c(PREVIOUS), 64));
++    code.extend(binary(reg(abi::EAX), reg(abi::ECX), Op::I32_ADD));
++    code.extend(local_set(SOURCE_POINTER));
++    guard(
++        &mut code,
++        within_length(local_get(SOURCE_POINTER), extend(local_get(COUNT))),
++    );
++    code.extend(binary(local_get(COUNT), i32c(1), Op::I32_SHR_U));
++    code.extend(local_set(COUNT)); // one original block visit per word
++    if checkpointed {
++        guard(
++            &mut code,
++            binary(
++                local_get(COUNT),
++                reg(crate::translate::scheduling::CHECKPOINT_BUDGET_GLOBAL),
++                Op::I32_LE_U,
++            ),
++        );
++    }
++    code.extend(reg(abi::EAX));
++    code.extend(local_set(DESTINATION));
++    code.extend([Op::LOOP, 0x40]);
++    code.extend(load(local_get(SOURCE_POINTER), Op::I32_LOAD16_U, 1));
++    code.extend(local_set(T3));
++    code.extend(local_get(DESTINATION));
++    code.extend(local_get(T3));
++    code.extend([Op::I32_STORE16, 1, 0]);
++    for local in [SOURCE_POINTER, DESTINATION] {
++        code.extend(binary(local_get(local), i32c(2), Op::I32_ADD));
++        code.extend(local_set(local));
++    }
++    code.extend(binary(
++        local_get(DESTINATION),
++        i32c(PREVIOUS + 64),
++        Op::I32_LT_U,
++    ));
++    code.extend([Op::BR_IF, 0, Op::END]);
++    code.extend(set_reg(
++        abi::EDX,
++        binary(
++            binary(reg(abi::EDX), i32c(-65536), Op::I32_AND),
++            local_get(T3),
++            Op::I32_OR,
++        ),
++    ));
++    code.extend(set_reg(abi::EAX, i32c(PREVIOUS + 64)));
++    code.extend(set_reg(abi::FLAGS, i32c(abi::ZF | abi::PF)));
++    if checkpointed {
++        code.extend(set_reg(
++            crate::translate::scheduling::CHECKPOINT_BUDGET_GLOBAL,
++            binary(
++                reg(crate::translate::scheduling::CHECKPOINT_BUDGET_GLOBAL),
++                binary(local_get(COUNT), i32c(1), Op::I32_SUB),
++                Op::I32_SUB,
++            ),
++        ));
++    }
++    code.extend(i32c(successor));
++    code.extend(local_set(crate::translate::layout::NEXT));
++    code.push(Op::BR);
++    code.extend(crate::wasm::leb::uleb(depth as u32 + 1));
++    code.push(Op::END);
++    code
++}
++
+ fn selected() -> Seq {
+     binary(
+         binary(
+diff --git a/crates/compiler/tests/unit/translate/kernels/compositor_alpha.rs b/crates/compiler/tests/unit/translate/kernels/compositor_alpha.rs
+index 7132c3e..001837d 100644
+--- a/crates/compiler/tests/unit/translate/kernels/compositor_alpha.rs
++++ b/crates/compiler/tests/unit/translate/kernels/compositor_alpha.rs
+@@ -194,3 +194,75 @@ fn masked_span_budget_matches_discovered_overlapping_blocks() {
+         .iter()
+         .any(|insn| insn.va == 0x498a91));
+ }
++
++#[test]
++fn previous_color_copy_preserves_overlap_faults_registers_and_checkpoints() {
++    use crate::translate::{layout::NEXT, scheduling::CHECKPOINT_BUDGET_GLOBAL};
++    let functions = HashMap::new();
++    let imports = HashMap::new();
++    let context = crate::translate::emit::EmitCtx {
++        memory_minimum_pages: 1,
++        id: BTreeMap::new(),
++        func_idx_of: &functions,
++        idx_of: 0,
++        iat_shim: &imports,
++        block_trace: None,
++    };
++    let mut routines = Vec::new();
++    for (address, modrm, plain, span) in [
++        (0x49890f, 0x01, "plain", "span"),
++        (0x4989dc, 0x08, "plain_masked", "span_masked"),
++    ] {
++        // MOV DX,[EAX+ECX]; MOV [EAX],DX; INC EAX twice; CMP EAX,end.
++        let bytes = [
++            0x66, 0x8b, 0x14, modrm, 0x66, 0x89, 0x10, 0x40, 0x40, 0x3d, 0x4c, 0x5d, 0x6e, 0,
++        ];
++        let mut memory = GuestMem::new();
++        memory.write(0, &bytes);
++        let mut decoded = Vec::new();
++        let mut at = 0;
++        while at < bytes.len() as u32 {
++            let mut insn = decode_insn(&memory, 0, at).unwrap();
++            at += insn.size;
++            insn.va += address;
++            decoded.push(insn);
++        }
++        for (name, optimized) in [(plain, false), (span, true)] {
++            let mut code = i32c(0);
++            code.extend(local_set(NEXT));
++            code.extend([Op::BLOCK, 0x40, Op::LOOP, 0x40]);
++            code.extend(local_get(NEXT));
++            code.extend([Op::BR_IF, 1]);
++            code.extend(set_reg(abi::TRAP_VA, i32c(address as i32)));
++            code.extend(set_reg(
++                CHECKPOINT_BUDGET_GLOBAL,
++                binary(reg(CHECKPOINT_BUDGET_GLOBAL), i32c(1), Op::I32_SUB),
++            ));
++            code.extend(reg(CHECKPOINT_BUDGET_GLOBAL));
++            code.extend([Op::I32_EQZ, Op::IF, 0x40]);
++            code.extend(set_reg(CHECKPOINT_BUDGET_GLOBAL, i32c(256)));
++            code.extend([Op::CALL, 0, Op::END]);
++            if optimized {
++                code.extend(copy_previous(1, 0, true));
++            }
++            for insn in &decoded {
++                code.extend(emit_insn(insn, &context, -1, 0).unwrap());
++            }
++            code.extend(binary(reg(abi::EAX), i32c(PREVIOUS + 64), Op::I32_LT_S));
++            code.extend([Op::BR_IF, 0, Op::END, Op::END]);
++            routines.push((name, crate::translate::optimize::promote(&code).0));
++        }
++    }
++    routines.push((
++        "set_budget",
++        set_reg(CHECKPOINT_BUDGET_GLOBAL, reg(abi::EDX)),
++    ));
++    routines.push((
++        "read_budget",
++        set_reg(abi::EDX, reg(CHECKPOINT_BUDGET_GLOBAL)),
++    ));
++    execute_sequences_v8(
++        &routines,
++        include_str!("../../../fixtures/compositor-alpha-copy.mjs"),
++    );
++}
+diff --git a/crates/compiler/tests/fixtures/compositor-alpha-copy.mjs b/crates/compiler/tests/fixtures/compositor-alpha-copy.mjs
+new file mode 100644
+index 0000000..8876f59
+--- /dev/null
++++ b/crates/compiler/tests/fixtures/compositor-alpha-copy.mjs
+@@ -0,0 +1,152 @@
++import assert from 'node:assert/strict'
++import { readFileSync, writeFileSync } from 'node:fs'
++import { createHash } from 'node:crypto'
++const names = [
++  'eax',
++  'ecx',
++  'edx',
++  'ebx',
++  'esp',
++  'ebp',
++  'esi',
++  'edi',
++  'flags',
++  'fp_top',
++  'fp_status',
++  'trap_va',
++  'call_target',
++  'resume_next',
++  'actual_return',
++  'teb_base',
++]
++const memory = new WebAssembly.Memory({ initial: 128 })
++const bytes = new Uint8Array(memory.buffer)
++const previous = 0x6e5d0c
++let traces, mutation
++const snapshot = () => ({
++  registers: names.map((n) => env[n].value),
++  memory: createHash('sha256').update(bytes).digest('hex'),
++})
++const env = {
++  memory,
++  observe() {
++    traces.push(snapshot())
++    mutation?.(traces.length)
++  },
++}
++for (const name of names) env[name] = new WebAssembly.Global({ value: 'i32', mutable: true }, 0)
++const module = new WebAssembly.Module(readFileSync(0))
++const { exports: run } = new WebAssembly.Instance(module, { env })
++let seed = 91,
++  cases = 0
++const random = () => (seed = (Math.imul(seed, 1664525) + 1013904223) | 0)
++function compare(options = {}) {
++  const {
++    index = 0,
++    source = 0x30000,
++    budget = 256,
++    change,
++    interrupt,
++    initialPages = 128,
++  } = options
++  const initial = names.map(() => random())
++  function execute(name) {
++    // Limit visible memory for destination-boundary cases via a separate instance.
++    const testMemory =
++      initialPages === 128 ? memory : new WebAssembly.Memory({ initial: initialPages })
++    const testBytes = new Uint8Array(testMemory.buffer)
++    const testView = new DataView(testMemory.buffer)
++    const testEnv = { ...env, memory: testMemory }
++    const state = () => ({
++      registers: names.map((n) => env[n].value),
++      memory: createHash('sha256').update(testBytes).digest('hex'),
++    })
++    testEnv.observe = () => {
++      traces.push(state())
++      mutation?.(traces.length)
++    }
++    const exports =
++      initialPages === 128 ? run : new WebAssembly.Instance(module, { env: testEnv }).exports
++    testBytes.fill(0xa5)
++    for (const base of [source, previous - 16])
++      for (let i = 0; i < 48; i++) {
++        const at = base + 2 * i
++        if (at >= 0 && at + 2 <= testBytes.length)
++          testView.setUint16(at, (i * 9173 + base) & 65535, true)
++      }
++    env.edx.value = budget
++    exports.set_budget()
++    names.forEach((n, i) => (env[n].value = initial[i]))
++    env.eax.value = previous + index
++    env.ecx.value = (source - env.eax.value) | 0
++    traces = []
++    mutation = (count) => {
++      if (count !== 1) return
++      if (change === 'source') env.ecx.value = (testBytes.length - env.eax.value) | 0
++      if (change === 'data') testView.setUint16(source + 62, 0x1234, true)
++      if (interrupt) throw Error('checkpoint interrupt')
++    }
++    let error = null
++    try {
++      exports[name]()
++    } catch (e) {
++      error = { name: e.name, message: e.message }
++    }
++    const result = state()
++    exports.read_budget()
++    return { ...result, error, traces, budget: env.edx.value }
++  }
++  for (const [plain, span] of [
++    ['plain', 'span'],
++    ['plain_masked', 'span_masked'],
++  ])
++    assert.deepEqual(execute(span), execute(plain), JSON.stringify(options))
++  cases++
++}
++for (const index of [0, 2, 14, 30, 60, 62])
++  for (const budget of [1, 2, 3, 7, 16, 31, 32, 33, 64, 256]) compare({ index, budget })
++for (const source of [
++  0,
++  bytes.length - 64,
++  bytes.length - 63,
++  bytes.length - 2,
++  bytes.length,
++  0xfffffffe,
++  previous - 2,
++  previous,
++  previous + 1,
++  previous + 2,
++  previous + 30,
++  previous + 63,
++])
++  compare({ source })
++for (const index of [-2, 1, 63, 64, 66]) compare({ index })
++for (const change of ['source', 'data']) compare({ budget: 4, change })
++compare({ budget: 4, interrupt: true })
++compare({ initialPages: 108 })
++console.log(`Previous-color word copy: ${cases * 2} differential cases passed`)
++if (process.env.SIMS_COPY_BENCH_REPORT) {
++  // Explicit opt-in microbenchmark: repeated 32-pixel rows, with normal budgets.
++  // Host callbacks remain active, but omit expensive correctness snapshots here.
++  env.observe = () => {}
++  const fastEnv = { ...env, observe() {} }
++  const fast = new WebAssembly.Instance(module, { env: fastEnv }).exports
++  const iterations = 200000,
++    samples = { plain: [], span: [] }
++  for (let round = 0; round < 7; round++)
++    for (const name of round % 2 ? ['span', 'plain'] : ['plain', 'span']) {
++      env.edx.value = 256
++      fast.set_budget()
++      env.ecx.value = 0x30000 - previous
++      const start = performance.now()
++      for (let i = 0; i < iterations; i++) {
++        env.eax.value = previous
++        fast[name]()
++      }
++      if (round > 0) samples[name].push(performance.now() - start)
++    }
++  writeFileSync(
++    process.env.SIMS_COPY_BENCH_REPORT,
++    JSON.stringify({ iterations, samples }, null, 2),
++  )
++}

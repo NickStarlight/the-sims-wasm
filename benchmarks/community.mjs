@@ -4,6 +4,7 @@ import fs from 'node:fs'
 // Install benchmark dependencies with npm install --prefix benchmarks.
 // Usage: node benchmarks/community.mjs LABEL GAME_FOLDER [CDP_URL] [SITE_URL]
 const label = process.argv[2] || 'run'
+const profiling = process.env.SIMS_PROFILE === '1'
 if (!process.argv[3]) throw new Error('Supply the game folder')
 const browser = await chromium.connectOverCDP(process.argv[4] || 'http://127.0.0.1:9229')
 const context = await browser.newContext({
@@ -42,6 +43,65 @@ try {
       window.benchmarkReport = text
     }
   })
+  let profiler
+  if (profiling) {
+    const cdp = await browser.newBrowserCDPSession()
+    const { targetInfos } = await cdp.send('Target.getTargets')
+    const target = targetInfos.find(
+      (t) => t.type === 'worker' && t.url.endsWith('/runtime-worker.js'),
+    )
+    if (!target) throw new Error('Runtime worker missing')
+    const { sessionId } = await cdp.send('Target.attachToTarget', {
+      targetId: target.targetId,
+      flatten: false,
+    })
+    let id = 0
+    const pending = new Map()
+    cdp.on('Target.receivedMessageFromTarget', (event) => {
+      if (event.sessionId !== sessionId) return
+      const result = JSON.parse(event.message)
+      const request = pending.get(result.id)
+      if (request) {
+        clearTimeout(request.timeout)
+        pending.delete(result.id)
+        result.error
+          ? request.reject(Error(JSON.stringify(result.error)))
+          : request.resolve(result.result)
+      }
+    })
+    const send = (method, params = {}) =>
+      new Promise((resolve, reject) => {
+        const request = ++id
+        const timeout = setTimeout(() => {
+          pending.delete(request)
+          reject(Error('Profiler command timed out: ' + method))
+        }, 15000)
+        pending.set(request, { resolve, reject, timeout })
+        cdp
+          .send('Target.sendMessageToTarget', {
+            sessionId,
+            message: JSON.stringify({ id: request, method, params }),
+          })
+          .catch((error) => {
+            clearTimeout(timeout)
+            pending.delete(request)
+            reject(error)
+          })
+      })
+    await send('Profiler.enable')
+    await send('Profiler.setSamplingInterval', { interval: 1000 })
+    await send('Profiler.start')
+    const main = await context.newCDPSession(page)
+    await main.send('Profiler.enable')
+    await main.send('Profiler.start')
+    profiler = async () => {
+      const worker = await send('Profiler.stop')
+      fs.writeFileSync(`/tmp/${label}-worker.cpuprofile`, JSON.stringify(worker.profile))
+      const result = await main.send('Profiler.stop')
+      fs.writeFileSync(`/tmp/${label}-page.cpuprofile`, JSON.stringify(result.profile))
+      await cdp.detach()
+    }
+  }
   await page.locator('#performance-reset').click()
   await page.locator('#performance-hide').click()
   for (let i = 0; i < 8; i++) {
@@ -55,11 +115,15 @@ try {
     await page.waitForTimeout(1300)
     await page.mouse.up({ button: 'right' })
   }
+  if (profiler) await profiler()
   await page.locator('#performance-toggle').click()
   await page.locator('#performance-copy').click()
   const report = JSON.parse(await page.evaluate(() => window.benchmarkReport))
   Object.assign(report, {
     label,
+    profiling,
+    browserVersion: browser.version(),
+    viewport: page.viewportSize(),
     playToNeighborhoodMs: neighborhood - start,
     lotLoadMs: lot - lotClick,
     errors,

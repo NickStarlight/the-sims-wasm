@@ -1,0 +1,54 @@
+{
+  "baseline": {
+    "runs": 3,
+    "metrics": {
+      "playToNeighborhoodMs": {
+        "median": 40708,
+        "min": 40278,
+        "max": 40895
+      },
+      "lotLoadMs": {
+        "median": 2612,
+        "min": 2607,
+        "max": 2658
+      },
+      "fps": {
+        "median": 36.8,
+        "min": 36,
+        "max": 36.93
+      },
+      "frameP95Ms": {
+        "median": 61.8,
+        "min": 61.8,
+        "max": 63.6
+      }
+    },
+    "errors": []
+  },
+  "candidate": {
+    "runs": 3,
+    "metrics": {
+      "playToNeighborhoodMs": {
+        "median": 40809,
+        "min": 40625,
+        "max": 40994
+      },
+      "lotLoadMs": {
+        "median": 2636,
+        "min": 2624,
+        "max": 2649
+      },
+      "fps": {
+        "median": 36.67,
+        "min": 36.07,
+        "max": 36.8
+      },
+      "frameP95Ms": {
+        "median": 62.4,
+        "min": 62.2,
+        "max": 62.7
+      }
+    },
+    "errors": []
+  }
+}

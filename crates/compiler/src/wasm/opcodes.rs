@@ -43,6 +43,7 @@ impl Op {
     pub const I32_NE: u8 = 0x47;
     pub const I32_LT_S: u8 = 0x48;
     pub const I32_LT_U: u8 = 0x49;
+    pub const I32_GT_S: u8 = 0x4a;
     pub const I32_GT_U: u8 = 0x4b;
     pub const I32_LE_U: u8 = 0x4d;
     pub const I32_GE_U: u8 = 0x4f;

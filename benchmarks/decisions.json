@@ -5,11 +5,14 @@
     "Compact large journals transactionally at startup",
     "Honor render-target alpha blend factors",
     "Batch bounded guest text reads",
-    "Use wasm-encoder for shared instruction emission and LEB encoding"
+    "Use wasm-encoder for shared instruction emission and LEB encoding",
+    "Guarded alpha-mask classification in the fingerprinted compositor: 2.63x isolated loop speedup; 36.33 to 37.90 median FPS in the controlled community-pan comparison."
   ],
   "rejectedExperiments": [
     "Incremental raster edge stepping: slower in the measured native workload",
-    "Reciprocal-area raster arithmetic: no repeatable gain; retain original arithmetic"
+    "Reciprocal-area raster arithmetic: no repeatable gain; retain original arithmetic",
+    "Dead flag elimination through nonfaulting register moves: three-run camera-pan median 36.67 FPS versus 36.8 baseline; p95 62.4 ms versus 61.8 ms. Removed; reproducible patch in experiments/dead-flags.patch.",
+    "Compositor previous-color word copy: 2x isolated speedup but real-game median 35.6 FPS versus 37.2 initial baseline; removed. Patch preserved in experiments/compositor-copy.patch."
   ],
   "compatibilityBoundaries": [
     "x87 still uses binary64 arithmetic. New executable tests document extended-format roundtrip and precision/exponent losses; no software extended-precision migration was attempted.",
@@ -17,15 +20,17 @@
     "Browser Wasm adapters remain custom and covered by runtime tests. Library consolidation was applied to the Rust compiler; build-time conversion of all browser adapters remains unimplemented."
   ],
   "validation": {
-    "cargo xtask check --browser": "passed: formatting, strict native/Wasm clippy, 302 tests and all Node runtime/compiler/cache suites",
+    "cargo xtask check --browser": "passed: formatting, strict native/Wasm clippy, 304 Rust tests and all Node runtime/compiler/cache suites",
     "npm run format:check": "passed",
     "chrome OPFS compaction": "transactional replacement and reopen passed in isolated storage",
-    "game": "Neighborhood 1 community park, cold isolated Chrome context, 1280x960, paced right-button camera panning. Reports and screenshots verified; residential prompt-blocked samples excluded."
+    "game": "Neighborhood 1 community park, cold isolated Chrome context, 1280x960, paced right-button camera panning. Reports and screenshots verified; residential prompt-blocked samples excluded.",
+    "residential smoke": "Goth household: simulation, $80 chair and two $3 floor tiles, in-game save/quit, browser page reload and lot reopen. Objects, $2,456 balance and 06:42 time restored; simulation resumed to 06:47. Introductory dialogs reappeared.",
+    "alpha classification": "328 differential cases plus independent mask/alpha checks, discovered overlapping-block assertions, and 793600-pixel identical fixed park regions across all 9 comparison runs."
   },
   "measurementLimits": [
-    "Single controlled baseline; per-change runs establish stability, not statistical significance.",
+    "Initial per-change series used a single controlled baseline. The dead-flags investigation used three runs per build. The retained classification comparison used three baseline controls bracketed by two batches of three optimized runs; all remain small single-machine samples.",
     "Scene timing uses screenshots sampled every 250 ms plus screenshot overhead.",
     "Native replay and raster microbenchmarks are not end-to-end browser speedups.",
-    "No demonstrated improvement in gameplay frame rate."
+    "The initial optimization series showed no gameplay FPS gain. The subsequent compositor classification experiment measured about 4% in one community-pan scenario; p95 frame time did not improve."
   ]
 }

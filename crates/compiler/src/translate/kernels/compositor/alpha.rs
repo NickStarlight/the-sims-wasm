@@ -6,11 +6,20 @@ const SOURCE_POINTER: u32 = 7;
 const DESTINATION_OFFSET: u32 = 8;
 const MASK: u32 = 12;
 
+mod classify;
+
 pub(super) fn loop_kernel(
     address: u32,
     context: &super::super::super::emit::EmitCtx,
     depth: i32,
 ) -> Option<Seq> {
+    if address == 0x4988c6 {
+        return Some(classify::emit(
+            *context.id.get(&0x4988fb)?,
+            depth,
+            context.block_trace.is_some(),
+        ));
+    }
     if address == 0x4989ff {
         return Some(masked_span(
             *context.id.get(&0x498aa3)?,

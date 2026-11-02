@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-01",
+  "sourceCommit": "17e372f",
+  "household": "Goth, 5 Sim Lane, Neighborhood 1",
+  "storage": "disposable Chrome context; same context retained across page reload",
+  "initialFunds": 2542,
+  "chairCost": 80,
+  "floorTiles": 2,
+  "floorTileCost": 3,
+  "savedFunds": 2456,
+  "restoredFunds": 2456,
+  "journalBytesAfterSave": 1599161,
+  "savedTime": "06:42",
+  "restoredTime": "06:42",
+  "timeAfterResume": "06:47",
+  "chairAndTilesRestored": true,
+  "queuedInteractionRestored": true,
+  "gameQuitAndBrowserPageReload": true,
+  "pageErrors": [],
+  "observation": "Expansion/help introductory dialogs reappeared after page reload; native-game comparison not performed.",
+  "verification": "Manual visual inspection of real Chrome screenshots and OPFS journal size; no OCR or automated semantic scene assertions."
+}
