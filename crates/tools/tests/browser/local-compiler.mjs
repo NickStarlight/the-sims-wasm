@@ -16,7 +16,7 @@ const gameSource = (await readFile(source, 'utf8')).replace(
 )
 const wasm = Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0)
 const packed = Uint8Array.of(11, 12, 13, 21, 22, 23, 31, 32, 33)
-const commandLine = 'C:\\Sims\\Sims.exe -skip_intro -r1024x768'
+const commandLine = 'C:\\Sims\\Sims.exe -skip_intro -r800x600'
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const metadata = {
   funcAddrs: [0x400010, 0x10000010, 0x10100010],
