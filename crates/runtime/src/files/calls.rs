@@ -9,6 +9,12 @@ impl Files {
     ) -> Result<(u32, u32)> {
         match name {
             "CreateFileA" => self.open(process, args),
+            "OpenFile" => self.open_legacy(process, args),
+            "_lclose" => Ok(if self.handles.remove(&args[0]).is_some() {
+                (0, 0)
+            } else {
+                (u32::MAX, 6)
+            }),
             "CopyFileA" | "MoveFileA" => self.copy_or_move(process, name, args),
             "FlushFileBuffers" => Ok(if self.handles.contains_key(&args[0]) {
                 (1, 0)
@@ -94,7 +100,11 @@ impl Files {
             _ => Err(Error::Host(format!("unknown file API {name}"))),
         }
     }
-    fn open<M: GuestMemory>(&mut self, process: &Process<M>, args: &[u32]) -> Result<(u32, u32)> {
+    pub(super) fn open<M: GuestMemory>(
+        &mut self,
+        process: &Process<M>,
+        args: &[u32],
+    ) -> Result<(u32, u32)> {
         let spelling = self.cased_path(process, args[0])?;
         let path = spelling.to_lowercase();
         if path.is_empty() || path.contains(['*', '?']) {

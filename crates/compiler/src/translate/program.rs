@@ -16,6 +16,9 @@ mod geometry_tests;
 mod hash_tests;
 mod images;
 mod model;
+#[cfg(test)]
+#[path = "../../tests/unit/translate/program/multiply.rs"]
+mod multiply_tests;
 mod roots;
 mod segments;
 

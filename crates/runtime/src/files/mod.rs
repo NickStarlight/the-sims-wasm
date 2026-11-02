@@ -1,6 +1,7 @@
 //! Process-owned preloaded files, copy-on-write overlays, handles, and directory searches.
 mod calls;
 mod journal;
+mod legacy;
 pub use journal::validate_save_journal;
 #[cfg(test)]
 #[path = "../../tests/unit/files/journal.rs"]

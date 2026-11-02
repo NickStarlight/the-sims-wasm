@@ -211,7 +211,7 @@ const { audioSmoke } = await import('./audio.mjs');
 await audioSmoke(Process);
 
 const { mediaSmoke } = await import('./media.mjs');
-mediaSmoke(Process);
+await mediaSmoke(Process, moduleUrl);
 const { threadSmoke } = await import('./threads.mjs');
 await threadSmoke(Process, moduleUrl);
 

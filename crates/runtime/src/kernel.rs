@@ -305,7 +305,6 @@ impl Kernel {
             | Call::IsBadCodePtr
             | Call::CreateProcessA
             | Call::OpenProcess
-            | Call::Lclose
             | Call::ExitProcess
             | Call::FatalAppExitA
             | Call::OutputDebugStringA
@@ -315,8 +314,7 @@ impl Kernel {
             | Call::GetExitCodeProcess
             | Call::GetSystemDirectoryA
             | Call::GetSystemInfo
-            | Call::VirtualQuery
-            | Call::OpenFile => self.compatibility(process, api.call, args),
+            | Call::VirtualQuery => self.compatibility(process, api.call, args),
             Call::CreateThread
             | Call::ResumeThread
             | Call::SuspendThread
@@ -533,6 +531,8 @@ impl Kernel {
             | Call::RegQueryValueA
             | Call::RegSetValueA => self.registry.call(process, api.name, args),
             Call::CreateFileA
+            | Call::OpenFile
+            | Call::Lclose
             | Call::ReadFile
             | Call::WriteFile
             | Call::SetFilePointer

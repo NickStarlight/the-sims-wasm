@@ -11,6 +11,32 @@ fn process() -> Process<SparseMemory> {
 }
 
 #[test]
+fn legacy_music_size_probe_routes_through_real_file_handles() {
+    let mut process = process();
+    let mut kernel = Kernel::default();
+    kernel
+        .files
+        .add_file("Music/track.mp3", &[1; 4096])
+        .unwrap();
+    let name = process.heap_alloc(64).unwrap();
+    let info = process.heap_alloc(136).unwrap();
+    process.write(name, b"Music/track.mp3\0").unwrap();
+    assert!(resolve("kernel32.dll", "OpenFile").unwrap().storage);
+    let handle = call(&mut kernel, &mut process, "OpenFile", &[name, info, 0]);
+    assert_ne!(handle, u32::MAX);
+    assert_eq!(
+        call(&mut kernel, &mut process, "GetFileSize", &[handle, 0]),
+        4096
+    );
+    assert_eq!(call(&mut kernel, &mut process, "_lclose", &[handle]), 0);
+    assert_eq!(
+        call(&mut kernel, &mut process, "_lclose", &[handle]),
+        u32::MAX
+    );
+    assert_eq!(call(&mut kernel, &mut process, "GetLastError", &[]), 6);
+}
+
+#[test]
 fn command_line_uses_the_validated_loader_buffer() {
     let mut process = process();
     let mut kernel = Kernel::default();

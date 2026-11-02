@@ -150,8 +150,64 @@ pub(super) fn emit_imul(insn: &Insn) -> Seq {
     }
 }
 
-/// MUL/IMUL one-operand: edx:eax = eax ∘ rm.
+/// One-operand MUL/IMUL writes AX, DX:AX, or EDX:EAX according to operand width.
 pub(super) fn emit_mul_long(signed: bool, rm: &Operand) -> Seq {
+    let size = match rm {
+        Operand::Reg { size, .. } => *size,
+        Operand::Mem(m) => m.size,
+        _ => 4,
+    };
+    if size < 4 {
+        // In particular, byte IMUL must not clobber EDX: the guest MP3 header
+        // parser keeps its bitrate index in DL across an IMUL BL instruction.
+        let accumulator = Operand::Reg { r: abi::EAX, size };
+        let extend = |value| {
+            if signed {
+                sign_extend(value, size)
+            } else {
+                value
+            }
+        };
+        let mut out = extend(read_op(&accumulator));
+        out.extend(extend(read_op(rm)));
+        out.push(Op::I32_MUL);
+        out.extend(local_set(RES));
+        out.extend(write_op(
+            &Operand::Reg {
+                r: abi::EAX,
+                size: 2,
+            },
+            local_get(RES),
+        ));
+        if size == 2 {
+            let mut high = local_get(RES);
+            high.extend(i32c(16));
+            high.push(Op::I32_SHR_U);
+            out.extend(write_op(
+                &Operand::Reg {
+                    r: abi::EDX,
+                    size: 2,
+                },
+                high,
+            ));
+        }
+        let mut overflow = local_get(RES);
+        if signed {
+            overflow.extend(sign_extend(local_get(RES), size));
+        } else {
+            overflow.extend(local_get(RES));
+            overflow.extend(i32c(if size == 1 { 0xff } else { 0xffff }));
+            overflow.push(Op::I32_AND);
+        }
+        overflow.push(Op::I32_NE);
+        let mut flags = reg(abi::FLAGS);
+        flags.extend(i32c(!(abi::CF | abi::OF)));
+        flags.push(Op::I32_AND);
+        flags.extend(pick(i32c(abi::CF | abi::OF), i32c(0), overflow));
+        flags.push(Op::I32_OR);
+        out.extend(set_reg(abi::FLAGS, flags));
+        return out;
+    }
     let ext: u8 = if signed {
         Op::I64_EXTEND_I32_S
     } else {

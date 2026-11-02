@@ -71,8 +71,10 @@ macro_rules! apis {
             exception: matches!(Call::$variant, Call::RaiseException | Call::RtlUnwind),
             wall_clock: match Call::$variant {Call::GetLocalTime=>Some("local"),Call::GetSystemTime | Call::GetSystemTimeAsFileTime=>Some("utc"),_=>None},
             clock: matches!(Call::$variant, Call::QueryPerformanceCounter | Call::GetTickCount | Call::TimeGetTime | Call::PeekMessageA | Call::GetMessageA | Call::DSBuffer4 | Call::DSBuffer9 | Call::DSBuffer12 | Call::DSBuffer13 | Call::TimeSetEvent),
-            media: matches!(Call::$variant, Call::MmioOpenA | Call::MmioRead | Call::MmioSeek | Call::MmioSetBuffer | Call::MmioClose),
-            storage: matches!(Call::$variant, Call::CreateFileA | Call::WriteFile | Call::SetEndOfFile | Call::DeleteFileA | Call::CopyFileA | Call::MoveFileA | Call::FlushFileBuffers | Call::WritePrivateProfileStringA),
+            // MP3 streams use ReadFile, not MMIO; service their WinMM refill timers
+            // during message polling too, using a suspending callback trampoline.
+            media: matches!(Call::$variant, Call::PeekMessageA | Call::GetMessageA | Call::MmioOpenA | Call::MmioRead | Call::MmioSeek | Call::MmioSetBuffer | Call::MmioClose),
+            storage: matches!(Call::$variant, Call::CreateFileA | Call::OpenFile | Call::WriteFile | Call::SetEndOfFile | Call::DeleteFileA | Call::CopyFileA | Call::MoveFileA | Call::FlushFileBuffers | Call::WritePrivateProfileStringA),
             schedule: matches!(Call::$variant, Call::WaitForSingleObject | Call::WaitForSingleObjectEx | Call::WaitForMultipleObjects | Call::WaitForMultipleObjectsEx | Call::Sleep | Call::SleepEx | Call::EnterCriticalSection | Call::ExitThread),
             wake: matches!(Call::$variant, Call::CreateThread | Call::ResumeThread | Call::SetEvent | Call::PulseEvent | Call::ReleaseMutex | Call::LeaveCriticalSection | Call::CloseHandle),
             callback: callback!($($callback)?), variadic: variadic!($($callback)?), call: Call::$variant

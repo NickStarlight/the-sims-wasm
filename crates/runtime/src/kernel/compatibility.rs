@@ -42,7 +42,6 @@ impl Kernel {
             | Call::IsBadCodePtr
             | Call::CreateProcessA
             | Call::OpenProcess
-            | Call::Lclose
             | Call::ExitProcess
             | Call::FatalAppExitA
             | Call::OutputDebugStringA => 0,
@@ -96,12 +95,6 @@ impl Kernel {
                     p.write(a[1], &bytes)?;
                     28
                 }
-            }
-            Call::OpenFile => {
-                if a[1] != 0 {
-                    p.write(a[1], &[136, 1, 2, 0])?;
-                }
-                u32::MAX
             }
             _ => return Err(Error::Host("invalid compatibility routing".into())),
         })
