@@ -2,7 +2,7 @@ import { validateClientId } from './identity.js'
 import { hashBytes as digest } from '../shared/hash.js'
 import { openCompiledCache } from '../storage/compiled-cache.js'
 
-const commandLine = 'C:\\Sims\\Sims.exe -skip_intro'
+const commandLine = 'C:\\Sims\\Sims.exe -skip_intro -r1024x768'
 
 function pathKey(path) {
   return path.replaceAll('\\', '/').toLowerCase()
