@@ -55,28 +55,6 @@ fn compatibility_outputs_and_buffer_writes_match_source_without_claiming_new_ser
     let mut before = [0; 256];
     process.read(0x20000, &mut before).unwrap();
     assert_eq!(before, [0xaa; 256]);
-    assert_eq!(
-        call(
-            &mut process,
-            "SystemParametersInfoA",
-            &[0x30, 0, 0x20000, 0]
-        )
-        .unwrap(),
-        1
-    );
-    assert_eq!(words::<_, 4>(&process, 0x20000).unwrap(), [0, 0, 800, 600]);
-    assert_eq!(
-        call(&mut process, "SystemParametersInfoA", &[0xffff, 0, 0, 0]).unwrap(),
-        1
-    );
-    assert_eq!(
-        call(&mut process, "ChangeDisplaySettingsA", &[0x20000, 0]).unwrap(),
-        0
-    );
-    let mut extra = [0; 2];
-    process.read(0x20026, &mut extra).unwrap();
-    assert_eq!(extra, [0; 2]);
-    assert!(call(&mut process, "ChangeDisplaySettingsA", &[u32::MAX, 0]).is_err());
 }
 #[test]
 fn wvsprintf_uses_explicit_guest_argument_list_and_fixed_stdcall_arity() {

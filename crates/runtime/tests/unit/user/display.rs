@@ -188,3 +188,111 @@ fn invalid_names_sizes_and_guest_buffers_do_not_corrupt_records() {
     let id = resolve("user32.dll", "EnumDisplaySettingsA").unwrap().id;
     assert!(k.call(&mut p, id, &[0, 0, 0xfffffff0]).is_err());
 }
+
+#[test]
+fn user_display_change_updates_directdraw_and_work_area_without_mutating_devmode() {
+    let (mut k, mut p, b) = setup();
+    prepare(&mut p, b, 124);
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "EnumDisplaySettingsA", &[0, 2, b]),
+        1
+    );
+    let mut before = [0; 124];
+    p.read(b, &mut before).unwrap();
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "ChangeDisplaySettingsA", &[b, 2]),
+        0
+    );
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "GetSystemMetrics", &[0]),
+        800
+    );
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "ChangeDisplaySettingsA", &[b, 4]),
+        0
+    );
+    let mut after = [0; 124];
+    p.read(b, &mut after).unwrap();
+    assert_eq!(before, after);
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "GetSystemMetrics", &[0]),
+        1024
+    );
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "GetSystemMetrics", &[1]),
+        768
+    );
+    assert_eq!(
+        call(
+            &mut k,
+            &mut p,
+            "user32",
+            "SystemParametersInfoA",
+            &[0x30, 0, b + 160, 0]
+        ),
+        1
+    );
+    assert_eq!(words::<_, 4>(&p, b + 160).unwrap(), [0, 0, 1024, 768]);
+    assert_eq!(
+        call(
+            &mut k,
+            &mut p,
+            "ddraw",
+            "DirectDrawCreate",
+            &[0, b + 160, 0]
+        ),
+        0
+    );
+    let device = words::<_, 1>(&p, b + 160).unwrap()[0];
+    write_words(&mut p, b, &[108]).unwrap();
+    assert_eq!(
+        call(
+            &mut k,
+            &mut p,
+            "ddraw",
+            "DDraw_GetDisplayMode",
+            &[device, b]
+        ),
+        0
+    );
+    assert_eq!(words::<_, 2>(&p, b + 8).unwrap(), [768, 1024]);
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "ChangeDisplaySettingsA", &[0, 0]),
+        0
+    );
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "GetSystemMetrics", &[0]),
+        800
+    );
+}
+
+#[test]
+fn display_change_rejects_bad_modes_flags_and_headers_without_changing_current_mode() {
+    let (mut k, mut p, b) = setup();
+    prepare(&mut p, b, 124);
+    call(&mut k, &mut p, "user32", "EnumDisplaySettingsA", &[0, 2, b]);
+    write_words(&mut p, b + 108, &[9999]).unwrap();
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "ChangeDisplaySettingsA", &[b, 0]),
+        (-2i32) as u32
+    );
+    assert_eq!(
+        call(
+            &mut k,
+            &mut p,
+            "user32",
+            "ChangeDisplaySettingsA",
+            &[b, 0x80000000]
+        ),
+        (-4i32) as u32
+    );
+    p.write(b + 36, &40u16.to_le_bytes()).unwrap();
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "ChangeDisplaySettingsA", &[b, 0]),
+        (-5i32) as u32
+    );
+    assert_eq!(
+        call(&mut k, &mut p, "user32", "GetSystemMetrics", &[0]),
+        800
+    );
+}

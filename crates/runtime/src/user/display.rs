@@ -3,6 +3,58 @@ use super::*;
 const LEGACY_SIZE: usize = 124;
 const FULL_SIZE: usize = 156;
 impl User {
+    pub(super) fn change_display_settings<M: GuestMemory>(
+        &mut self,
+        process: &mut Process<M>,
+        a: &[u32],
+    ) -> Result<u32> {
+        // Only the process's virtual display changes; no host monitor settings.
+        if a[1] & !(2 | 4 | 0x40000000) != 0 {
+            return Ok((-4i32) as u32); // DISP_CHANGE_BADFLAGS
+        }
+        let mode = if a[0] == 0 {
+            crate::display::DEFAULT_MODE
+        } else {
+            let mut header = [0; 40];
+            process.read(a[0], &mut header)?;
+            if u16::from_le_bytes([header[36], header[37]]) < LEGACY_SIZE as u16 {
+                return Ok((-5i32) as u32); // DISP_CHANGE_BADPARAM
+            }
+            let mut bytes = [0; LEGACY_SIZE];
+            process.read(a[0], &mut bytes)?;
+            let word = |offset| u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
+            let fields = word(40);
+            let (mut width, mut height, mut bits) = self.display.mode();
+            if fields & 0x80000 != 0 {
+                width = word(108);
+            }
+            if fields & 0x100000 != 0 {
+                height = word(112);
+            }
+            if fields & 0x40000 != 0 {
+                bits = word(104);
+            }
+            if !crate::display::MODES
+                .iter()
+                .any(|m| m.0 == width && m.1 == height)
+                || ![16, 32].contains(&bits)
+                || (fields & 0x200000 != 0 && word(116) != 0)
+                || (fields & 0x400000 != 0 && ![0, 1, 60].contains(&word(120)))
+            {
+                return Ok((-2i32) as u32); // DISP_CHANGE_BADMODE
+            }
+            (width, height, bits)
+        };
+        if a[1] & 2 == 0 && mode != self.display.mode() {
+            self.display.set_mode(mode);
+            let windows: Vec<_> = self.windows.keys().copied().collect();
+            for window in windows {
+                self.enqueue(Message::new(window, 0x7e, mode.2, mode.0 | (mode.1 << 16)))?;
+            }
+        }
+        Ok(0)
+    }
+
     pub(super) fn enum_display_settings<M: GuestMemory>(
         &mut self,
         process: &mut Process<M>,

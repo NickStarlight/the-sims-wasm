@@ -69,6 +69,14 @@ impl User {
         a: &[u32],
     ) -> Result<u32> {
         match name {
+            "ChangeDisplaySettingsA" => self.change_display_settings(process, a),
+            "SystemParametersInfoA" => {
+                if a[0] == 0x30 && a[2] != 0 {
+                    let (width, height, _) = self.display.mode();
+                    write_words(process, a[2], &[0, 0, width, height])?;
+                }
+                Ok(1)
+            }
             "SetWindowTextA" => Ok(1), // Original shim only logged the supplied text.
             "SetRect" | "OffsetRect" | "InflateRect" | "IntersectRect" | "UnionRect"
             | "IsRectEmpty" | "PtInRect" => rectangles::call(process, name, a),

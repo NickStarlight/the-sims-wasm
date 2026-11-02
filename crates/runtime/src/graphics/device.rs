@@ -76,11 +76,9 @@ impl Graphics {
                 {
                     return Ok(INVALID);
                 }
-                if self
-                    .surfaces
-                    .values()
-                    .any(|surface| surface.caps & 0x200 != 0)
-                {
+                if self.surfaces.values().any(|surface| {
+                    surface.caps & 0x200 != 0 && (surface.lock.is_some() || surface.dc != 0)
+                }) {
                     return Ok(BUSY);
                 }
                 self.display.set_mode((args[1], args[2], args[3]));

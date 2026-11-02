@@ -801,3 +801,21 @@ fn repeated_locks_preserve_guest_writes_and_refresh_after_blits_and_flips() {
     assert_eq!(f.call("Surface_Unlock", &[back, 0]), 0);
     assert_eq!(*f.graphics.surfaces[&back].pixels, red);
 }
+
+#[test]
+fn display_mode_changes_with_an_idle_primary_but_not_a_locked_one() {
+    let mut f = Fixture::new();
+    let surface = f.surface(16, 0x200);
+    f.lock(surface);
+    assert_eq!(
+        f.call("DDraw_SetDisplayModeEx", &[f.device, 1024, 768, 16, 0, 0]),
+        BUSY
+    );
+    assert_eq!(f.graphics.display.mode(), (800, 600, 16));
+    assert_eq!(f.call("Surface_Unlock", &[surface, 0]), 0);
+    assert_eq!(
+        f.call("DDraw_SetDisplayModeEx", &[f.device, 1024, 768, 16, 0, 0]),
+        0
+    );
+    assert_eq!(f.graphics.display.mode(), (1024, 768, 16));
+}

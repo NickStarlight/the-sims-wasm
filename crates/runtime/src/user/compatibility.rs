@@ -3,9 +3,9 @@
 use super::*;
 
 pub(super) fn call<M: GuestMemory>(
-    process: &mut Process<M>,
+    _process: &mut Process<M>,
     name: &str,
-    args: &[u32],
+    _args: &[u32],
 ) -> Result<u32> {
     let value = match name {
         // The old backend used opaque fixed cursor identities; it never decoded the file.
@@ -22,21 +22,6 @@ pub(super) fn call<M: GuestMemory>(
         "MessageBoxA" | "MessageBoxW" => 1,
         "OpenClipboard" | "CloseClipboard" | "EmptyClipboard" => 1,
         "SetClipboardData" | "GetClipboardData" => 0,
-        "SystemParametersInfoA" => {
-            if args[0] == 0x30 && args[2] != 0 {
-                write_words(process, args[2], &[0, 0, 800, 600])?;
-            }
-            1
-        }
-        "ChangeDisplaySettingsA" => {
-            if args[0] != 0 {
-                process.write(
-                    args[0].checked_add(0x26).ok_or(Error::InvalidRange)?,
-                    &[0, 0],
-                )?;
-            }
-            0
-        }
         _ => return Err(Error::Host(format!("unsupported USER32 service {name}"))),
     };
     Ok(value)
