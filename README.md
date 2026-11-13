@@ -6,16 +6,16 @@ This project includes a Rust compiler that translates the original x86 game exec
 
 It's a work of love for The Sims community, made largely so *I could play The Sims on an airplane with my iPad*.
 
-### Update 13/11/2026
-
-I did play The Sims 1 on an airplane!
-[![Photo](docs/screenshots/IMG_0087.jpeg)](docs/screenshots/IMG_0087.jpeg)
-
 | Launcher | Loading |
 | :---: | :---: |
 | [![The Sims launcher](docs/screenshots/launcher.png)](docs/screenshots/launcher.png) | [![The Sims loading screen](docs/screenshots/loading.png)](docs/screenshots/loading.png) |
 | **Neighborhood** | **Gameplay** |
 | [![The neighborhood and its households](docs/screenshots/neighborhood.png)](docs/screenshots/neighborhood.png) | [![Sims interacting in a household](docs/screenshots/gameplay.png)](docs/screenshots/gameplay.png) |
+
+### Update 13/11/2026
+
+I did play The Sims 1 on an airplane!
+[![Photo](docs/screenshots/IMG_0087.jpeg)](docs/screenshots/IMG_0087.jpeg)
 
 ## Compatibility
 
