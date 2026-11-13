@@ -4,7 +4,12 @@ The original **The Sims - The Complete Collection**, running in a web browser th
 
 This project includes a Rust compiler that translates the original x86 game executable into WebAssembly, a Rust compatibility runtime, and a JavaScript browser host.
 
-It's a work of love for The Sims community, made largely so I could play The Sims on an airplane with my iPad.
+It's a work of love for The Sims community, made largely so *I could play The Sims on an airplane with my iPad*.
+
+### Update 13/11/2026
+
+I did play The Sims 1 on an airplane!
+[![Photo](docs/screenshots/IMG_0087.jpeg)](docs/screenshots/IMG_0087.jpeg)
 
 | Launcher | Loading |
 | :---: | :---: |
